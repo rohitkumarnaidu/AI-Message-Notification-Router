@@ -8,17 +8,16 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+CODE_DIR = REPO_ROOT / "code"
+if str(CODE_DIR) not in sys.path:
+    sys.path.insert(0, str(CODE_DIR))
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-try:
-    from config import DATASET_DIR, resolve_dataset_path, validate_env_example_placeholders
-    from loaders import find_duplicate_ids, load_csv_records
-    from validators import validate_output_schema
-except ImportError:
-    from code.config import DATASET_DIR, resolve_dataset_path, validate_env_example_placeholders
-    from code.loaders import find_duplicate_ids, load_csv_records
-    from code.validators import validate_output_schema
+from config import DATASET_DIR, resolve_dataset_path, validate_env_example_placeholders
+from loaders import find_duplicate_ids, load_csv_records
+from validators import validate_output_schema
+from hybrid_pipeline import run_pipeline
 
 
 def run_diagnostic_check() -> int:
@@ -59,14 +58,24 @@ def run_diagnostic_check() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Message Notification Router - Phase 0 Entry Point"
+        description="Message Notification Router - Entry Point"
     )
     parser.add_argument(
         "--check",
         action="store_true",
         help="Run Phase 0 diagnostic check on repository and dataset",
     )
+    parser.add_argument(
+        "--run",
+        action="store_true",
+        help="Run the Phase 5 Hybrid Production Router Pipeline",
+    )
     args = parser.parse_args()
+
+    if args.run:
+        print("Starting Production Pipeline...")
+        run_pipeline()
+        return 0
 
     if args.check or len(sys.argv) == 1:
         return run_diagnostic_check()

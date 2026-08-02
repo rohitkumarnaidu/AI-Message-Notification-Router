@@ -61,3 +61,22 @@ def read_utf8_text(filepath: Path | str) -> str:
     path = Path(filepath)
     with open(path, mode="r", encoding="utf-8") as f:
         return f.read()
+
+def load_full_dataset(dataset_dir: Path | str) -> dict[str, list[dict[str, str]]]:
+    """Loads all expected CSV files into a unified dictionary."""
+    base_path = Path(dataset_dir)
+    context = {}
+    expected_files = [
+        "messages.csv", "users.csv", "groups.csv", "group_members.csv", 
+        "business_accounts.csv", "user_business_history.csv", 
+        "message_history.csv", "message_events.csv", 
+        "images.csv", "voice_notes.csv"
+    ]
+    for filename in expected_files:
+        filepath = base_path / filename
+        key = filename.replace(".csv", "")
+        if filepath.exists():
+            context[key] = load_csv_records(filepath)
+        else:
+            context[key] = []
+    return context
