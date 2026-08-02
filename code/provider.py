@@ -30,16 +30,29 @@ def generate_structured_decision(prompt: str) -> RouterDecision:
             
             # Bounded retry attempt (Max 2 calls: 1 initial + 1 repair)
             for attempt in range(2):
-                try:
-                    # Set up schema response
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            temperature=0.0
+                import time
+                from google.genai.errors import APIError
+                
+                # Retry loop for 429 rate limit
+                for rl_attempt in range(1):
+                    try:
+                        # Set up schema response
+                        response = client.models.generate_content(
+                            model=model_name,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                response_mime_type="application/json",
+                                temperature=0.0
+                            )
                         )
-                    )
+                        break
+                    except APIError as e:
+                        if e.code == 429:
+                            raise ProviderFallbackError("Rate limit exceeded")
+                        else:
+                            raise
+                            
+                try:
                     raw_json = response.text
                     parsed = json.loads(raw_json)
                     
@@ -65,5 +78,6 @@ def generate_structured_decision(prompt: str) -> RouterDecision:
     except ProviderFallbackError:
         raise
     except Exception as e:
+        print(f"SDK failure in provider: {e}")
         raise ProviderFallbackError(f"SDK failure: {str(e)}")
 

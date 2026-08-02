@@ -70,11 +70,16 @@ def main() -> int:
         action="store_true",
         help="Run the Phase 5 Hybrid Production Router Pipeline",
     )
+    parser.add_argument(
+        "--samples",
+        action="store_true",
+        help="Run the pipeline on sample_messages.csv instead of full messages.csv",
+    )
     args = parser.parse_args()
 
     if args.run:
         print("Starting Production Pipeline...")
-        run_pipeline()
+        run_pipeline(use_samples=args.samples)
         return 0
 
     if args.check or len(sys.argv) == 1:

@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 # Local application imports
-from loaders import load_full_dataset
+from loaders import load_full_dataset, load_csv_records
 from context_builder import build_message_context
 from user_profile import build_user_profile
 from retriever import retrieve_evidence
@@ -14,13 +14,17 @@ from config import DATASET_DIR, OUTPUT_DIR
 from schemas import OUTPUT_CSV_COLUMNS
 from validators import validate_output_records, validate_row_count_and_ids
 
-def run_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTPUT_DIR):
+def run_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTPUT_DIR, use_samples: bool = False):
     """
     Execute the hybrid router pipeline over the incoming messages.
     """
     
     print(f"Loading dataset from: {dataset_dir}...")
     context = load_full_dataset(Path(dataset_dir))
+    if use_samples:
+        print("Using sample_messages.csv instead of full messages...")
+        context["messages"] = load_csv_records(Path(dataset_dir) / "sample_messages.csv")
+        
     incoming_messages = context.get("messages", [])
     
     if not incoming_messages:
