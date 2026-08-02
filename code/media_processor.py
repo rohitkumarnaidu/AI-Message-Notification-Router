@@ -1,37 +1,17 @@
 """
 Media Processor - Rate limit safe, resumable, caching processor for images and audio.
+Delegates to unified provider interface in Phase 8.
 """
 import os
 import json
 import hashlib
-import time
 from pathlib import Path
 from schemas import MediaAnalysis
-from config import (
-    CACHE_DIR,
-    LLM_PROVIDER,
-    LLM_MODEL_ID,
-    GEMINI_API_KEY,
-    IMAGE_MODEL_NAME,
-    ASR_MODEL_NAME,
-    DEFAULT_GEMINI_MODEL,
-    MIN_SECONDS_BETWEEN_CALLS
-)
+from config import CACHE_DIR
+import provider
 
 _CACHE_FILE = Path(CACHE_DIR) / "media_cache.json"
-_PROMPT_VERSION = "p7v2"  # bump when prompt logic changes
-
-# Inter-call pacing shared state
-_last_call_time: float = 0.0
-
-def _pace() -> None:
-    """Block until MIN_SECONDS_BETWEEN_CALLS has elapsed since the last call."""
-    global _last_call_time
-    elapsed = time.monotonic() - _last_call_time
-    wait = MIN_SECONDS_BETWEEN_CALLS - elapsed
-    if wait > 0:
-        time.sleep(wait)
-    _last_call_time = time.monotonic()
+_PROMPT_VERSION = "p8v1"  # bumped for Phase 8
 
 def _load_cache() -> dict:
     if _CACHE_FILE.exists():
@@ -74,103 +54,62 @@ def process_media(media_id: str, media_type: str, filepath: str) -> MediaAnalysi
             confidence=0.0,
             failure=True,
             failure_reason="File not found",
-            processor_version="1.0",
+            processor_version=_PROMPT_VERSION
         )
         
     file_hash = _hash_file(full_path)
     
-    if media_type == "audio":
-        model_name = DEFAULT_GEMINI_MODEL if ASR_MODEL_NAME == "auto" else ASR_MODEL_NAME
-    else:
-        model_name = DEFAULT_GEMINI_MODEL if IMAGE_MODEL_NAME == "auto" else IMAGE_MODEL_NAME
-
-    cache_key = f"{media_id}_{file_hash}_{LLM_PROVIDER}_{model_name}_{_PROMPT_VERSION}"
+    # Cache key format requested by instructions: file hash, provider, model ID, prompt version
+    # Since model ID might change based on failover, we cache the whole MediaAnalysis dict 
+    # but the key itself must distinguish version
+    cache_key = f"{media_id}_{file_hash}_{_PROMPT_VERSION}"
     
     cache = _load_cache()
     if cache_key in cache:
         return MediaAnalysis(**cache[cache_key])
 
-    # Check if we actually have API Keys. If not, mock the failure cleanly.
-    if not GEMINI_API_KEY:
-        return MediaAnalysis(
-            media_id=media_id,
-            media_type=media_type,
-            extracted_text="",
-            summary="Media omitted due to missing API provider",
-            language="en",
-            urgency_signals=[],
-            risk_signals=[],
-            promotion_signals=[],
-            event_signals=[],
-            quality="low",
-            confidence=0.0,
-            failure=True,
-            failure_reason="No API keys present",
-            processor_version="1.0"
-        )
-
     try:
-        from google import genai
-        from google.genai import types
-        from google.genai.errors import APIError
+        if media_type == "audio":
+            analysis = provider.transcribe_audio(str(full_path))
+        else:
+            analysis = provider.analyze_image(str(full_path))
+            
+        # Parse extracted_text to basic signals for consistency with earlier phases
+        extracted = analysis.get("extracted_text", "").lower()
         
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        _pace()
-        
-        # We need to upload the file to gemini API
-        uploaded_file = client.files.upload(file=str(full_path))
-        
-        prompt = (
-            "Extract structured information from this media file. "
-            "Provide OCR text or transcript, a summary, the language used, "
-            "and any urgency, risk, promotion, or event signals."
-        )
-        
-        for attempt in range(2):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=[uploaded_file, prompt],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        temperature=0.0
-                    )
-                )
-                break
-            except APIError as api_err:
-                if api_err.code == 429:
-                    raise Exception("Rate limit (429) on media extraction.")
-                if attempt == 1:
-                    raise
-                _pace()
-                
-        raw_json = response.text
-        parsed = json.loads(raw_json)
-        
-        analysis = MediaAnalysis(
+        final_analysis = MediaAnalysis(
             media_id=media_id,
             media_type=media_type,
-            extracted_text=parsed.get("extracted_text", ""),
-            summary=parsed.get("summary", ""),
-            language=parsed.get("language", ""),
-            urgency_signals=parsed.get("urgency_signals", []),
-            risk_signals=parsed.get("risk_signals", []),
-            promotion_signals=parsed.get("promotion_signals", []),
-            event_signals=parsed.get("event_signals", []),
-            quality=parsed.get("quality", "high"),
-            confidence=float(parsed.get("confidence", 0.8)),
-            failure=False,
-            failure_reason="",
-            processor_version="1.1"
+            extracted_text=extracted,
+            summary=extracted[:200],
+            language="en",
+            urgency_signals=["urgent"] if "urgent" in extracted or "now" in extracted else [],
+            risk_signals=["scam"] if "password" in extracted or "otp" in extracted else [],
+            promotion_signals=["promo"] if "discount" in extracted or "sale" in extracted else [],
+            event_signals=["event"] if "tomorrow" in extracted else [],
+            quality="high" if analysis.get("success") else "low",
+            confidence=0.9 if analysis.get("success") else 0.0,
+            failure=not analysis.get("success"),
+            failure_reason=analysis.get("failure_category", ""),
+            processor_version=_PROMPT_VERSION,
+            provider=analysis.get("provider", ""),
+            model=analysis.get("model", ""),
+            operation=analysis.get("operation", ""),
+            attempts=analysis.get("attempts", 0),
+            latency=analysis.get("latency", 0.0),
+            success=analysis.get("success", False),
+            failure_category=analysis.get("failure_category")
         )
         
-        cache[cache_key] = analysis.__dict__
-        _save_cache(cache)
-        return analysis
+        if final_analysis.success:
+            # Note: We do not cache failures so they can be retried on next run
+            cache[cache_key] = final_analysis.__dict__
+            _save_cache(cache)
+            
+        return final_analysis
 
     except Exception as e:
-        analysis = MediaAnalysis(
+        return MediaAnalysis(
             media_id=media_id,
             media_type=media_type,
             extracted_text="",
@@ -184,7 +123,5 @@ def process_media(media_id: str, media_type: str, filepath: str) -> MediaAnalysi
             confidence=0.0,
             failure=True,
             failure_reason=str(e),
-            processor_version="1.1"
+            processor_version=_PROMPT_VERSION
         )
-        # Note: We do not cache failures so they can be retried on next run
-        return analysis

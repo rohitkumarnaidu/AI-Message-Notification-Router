@@ -50,24 +50,6 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 
 @dataclass
-class IncomingMessageContext:
-    message_id: str
-    original_index: int
-    timestamp: str
-    conversation_type: str
-    text: str
-    media_type: str
-    media_id: str
-    user_context: Dict[str, Any] = field(default_factory=dict)
-    sender_context: Dict[str, Any] = field(default_factory=dict)
-    group_context: Dict[str, Any] = field(default_factory=dict)
-    business_context: Dict[str, Any] = field(default_factory=dict)
-    historical_context: Dict[str, Any] = field(default_factory=dict)
-    media_analysis: Optional['MediaAnalysis'] = None
-    deterministic_signals: Dict[str, Any] = field(default_factory=dict)
-    missing_context: List[str] = field(default_factory=list)
-
-@dataclass
 class UserProfile:
     user_id: str
     quiet_hours: str
@@ -99,6 +81,14 @@ class MediaAnalysis:
     failure: bool
     failure_reason: str
     processor_version: str
+    # Provider tracking
+    provider: str = ""
+    model: str = ""
+    operation: str = ""
+    attempts: int = 0
+    latency: float = 0.0
+    success: bool = False
+    failure_category: Optional[str] = None
 
 @dataclass
 class EvidenceCandidate:
@@ -113,6 +103,24 @@ class EvidenceCandidate:
     exclusion_reason: str
 
 @dataclass
+class IncomingMessageContext:
+    message_id: str
+    original_index: int
+    timestamp: str
+    conversation_type: str
+    text: str
+    media_type: str
+    media_id: str
+    user_context: Dict[str, Any] = field(default_factory=dict)
+    sender_context: Dict[str, Any] = field(default_factory=dict)
+    group_context: Dict[str, Any] = field(default_factory=dict)
+    business_context: Dict[str, Any] = field(default_factory=dict)
+    historical_context: Dict[str, Any] = field(default_factory=dict)
+    media_analysis: Optional['MediaAnalysis'] = None
+    deterministic_signals: Dict[str, Any] = field(default_factory=dict)
+    missing_context: List[str] = field(default_factory=list)
+
+@dataclass
 class RouterDecision:
     action: str
     message_type: str
@@ -121,6 +129,15 @@ class RouterDecision:
     evidence_message_ids: List[str]
     decision_signals: List[str] = field(default_factory=list)
     uncertainties: List[str] = field(default_factory=list)
+    # Provider tracking
+    provider: str = ""
+    model: str = ""
+    operation: str = ""
+    attempts: int = 0
+    latency: float = 0.0
+    success: bool = False
+    failure_category: Optional[str] = None
+    structured_output_status: str = ""
 
 @dataclass
 class FinalDecision:

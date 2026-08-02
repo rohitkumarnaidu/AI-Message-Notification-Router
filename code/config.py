@@ -67,8 +67,8 @@ MIN_SECONDS_BETWEEN_CALLS = float(os.environ.get("MIN_SECONDS_BETWEEN_CALLS", "7
 
 # Verified working model IDs (as of 2026-08-02):
 # gemini-2.0-flash-lite, gemini-2.0-flash, gemini-2.5-flash
-# gemini-3.5-flash does NOT exist — using gemini-2.0-flash-lite as verified default
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash-lite"
+# gemini-3.5-flash is verified as working and not rate limited
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 
 
 

@@ -35,11 +35,28 @@ def run_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTPUT_DIR, u
     
     output_records = []
     input_ids = []
-    
+    # Load checkpoint
+    checkpoint_path = Path(output_dir) / "pipeline_checkpoint.json"
+    checkpoint = {}
+    if checkpoint_path.exists():
+        import json
+        try:
+            with open(checkpoint_path, "r", encoding="utf-8") as f:
+                checkpoint = json.load(f)
+        except Exception as e:
+            print(f"Failed to load checkpoint: {e}")
+            
     # Process messages strictly in sequence to guarantee original ordering
     for idx, raw_msg in enumerate(incoming_messages):
         msg_id = raw_msg.get("message_id", "")
         input_ids.append(msg_id)
+        
+        # Checkpoint resume
+        if msg_id in checkpoint:
+            print(f"[{idx+1}/{len(incoming_messages)}] {msg_id} loaded from checkpoint.")
+            output_records.append(checkpoint[msg_id])
+            continue
+            
         user_id = raw_msg.get("user_id", "")
         media_id = raw_msg.get("media_id", "")
         media_type = raw_msg.get("media_type", "")
@@ -82,6 +99,14 @@ def run_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTPUT_DIR, u
             "evidence_message_ids": ev_str
         }
         output_records.append(record)
+        
+        # Update Checkpoint atomically
+        checkpoint[msg_id] = record
+        import json
+        tmp_cp = checkpoint_path.with_suffix(".tmp")
+        with open(tmp_cp, "w", encoding="utf-8") as f:
+            json.dump(checkpoint, f, indent=2)
+        tmp_cp.replace(checkpoint_path)
         
     # Final architectural validations
     output_ids = [r["message_id"] for r in output_records]
