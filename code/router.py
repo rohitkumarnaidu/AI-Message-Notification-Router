@@ -16,6 +16,16 @@ try:
 except ImportError:
     _SAFETY_PIPELINE_AVAILABLE = False
 
+# Phase 13 interruption policy pipeline
+try:
+    from temporal import extract_temporal_context
+    from relevance import extract_relevance_signals
+    from quiet_load import evaluate_notification_load
+    from interruption_resolver import resolve_interruption
+    _INTERRUPTION_PIPELINE_AVAILABLE = True
+except ImportError:
+    _INTERRUPTION_PIPELINE_AVAILABLE = False
+
 def build_llm_prompt(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[EvidenceCandidate]) -> str:
     """Builds the prompt string combining all contexts."""
     media_data = {}
@@ -299,6 +309,50 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
 
         except Exception:
             pass  # graceful degradation — existing overrides already applied
+
+    # ----------------------------------------------------------------
+    # Phase 13: Interruption Policy Resolver
+    # ----------------------------------------------------------------
+    if _INTERRUPTION_PIPELINE_AVAILABLE:
+        try:
+            # Reconstruct Phase 13 Contexts
+            temporal_ctx = extract_temporal_context(
+                text=msg_ctx.text, 
+                message_timestamp=getattr(msg_ctx, "timestamp", "2026-08-01T12:00:00Z"),
+                user_timezone=getattr(profile, "timezone", "UTC")
+            )
+            
+            relevance_signals = extract_relevance_signals(
+                text=msg_ctx.text,
+                is_direct_message=(msg_ctx.conversation_type == "personal"),
+                is_group_admin=msg_ctx.deterministic_signals.get("is_admin", False),
+                has_recent_engagement=msg_ctx.deterministic_signals.get("recent_engagement", False)
+            )
+            
+            notification_load = evaluate_notification_load(
+                daily_notification_count=getattr(profile, "daily_notifications", 0),
+                recent_notification_count=getattr(profile, "recent_notifications", 0)
+            )
+            
+            decision = resolve_interruption(
+                proposed_action=action,
+                message_type=msg_type,
+                temporal_ctx=temporal_ctx,
+                relevance=relevance_signals,
+                safety_signals=safety_signals,
+                notification_load=notification_load,
+                is_group=(msg_ctx.conversation_type == "group"),
+                is_group_muted=getattr(profile, "group_muted", False),
+                is_group_admin=msg_ctx.deterministic_signals.get("is_admin", False)
+            )
+            
+            if decision.policy_override:
+                overrides.append(f"phase13_interruption_{decision.override_reason.replace(' ', '_')}")
+                action = decision.final_action
+                reason = f"{decision.override_reason}: {reason}"
+                
+        except Exception:
+            pass # graceful degradation
 
     # ----------------------------------------------------------------
     # Phase 12: Unsafe-Notify Validator

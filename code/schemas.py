@@ -332,3 +332,71 @@ class UnsafeNotifyResult:
     confidence_adjustment: float = 0.0
     reason_adjustment: str = ""
     blocked: bool = False
+
+# ============================================================
+# PHASE 13: INTERRUPTION POLICY SCHEMA — FROZEN SHARED INTERFACES
+# ============================================================
+
+@dataclass
+class TemporalContext:
+    message_timestamp: str = ""
+    normalized_timezone: str = "UTC"
+    local_datetime: Optional[str] = None
+    day_of_week: str = ""
+    is_quiet_hours: bool = False
+    quiet_hours_source: str = ""
+    deadline_timestamp: Optional[str] = None
+    deadline_status: str = "none" # none | future | expired
+    time_until_deadline: Optional[float] = None
+    event_timestamp: Optional[str] = None
+    event_status: str = "none"
+    temporal_phrases: List[str] = field(default_factory=list)
+    temporal_uncertainties: List[str] = field(default_factory=list)
+
+@dataclass
+class RelevanceSignals:
+    direct_message: bool = False
+    direct_mention: bool = False
+    active_relationship: bool = False
+    recent_engagement: bool = False
+    current_transaction: bool = False
+    current_delivery: bool = False
+    user_opt_in: bool = False
+    user_opt_out: bool = False
+    personal_request: bool = False
+    required_response: bool = False
+    consequence_of_delay: str = "none"
+
+@dataclass
+class InterruptionSignals:
+    genuine_urgency: bool = False
+    urgency_language_only: bool = False
+    immediate_action_required: bool = False
+    deadline_strength: float = 0.0
+    user_consequence: float = 0.0
+    personal_relevance: float = 0.0
+    safety_risk: float = 0.0
+    quiet_hours: bool = False
+    notification_load: str = "normal" # low | normal | high
+    group_muted: bool = False
+    direct_mention: bool = False
+    group_admin: bool = False
+    duplicate_or_repeated: bool = False
+    promotion: bool = False
+    low_value: bool = False
+
+@dataclass
+class InterruptionDecision:
+    proposed_action: str = ""
+    final_action: str = ""
+    message_type: str = ""
+    policy_override: bool = False
+    override_reason: str = ""
+    urgency_score: float = 0.0
+    relevance_score: float = 0.0
+    interruption_cost: float = 0.0
+    safety_constraint: Optional[str] = None
+    quiet_hours_adjustment: bool = False
+    notification_load_adjustment: bool = False
+    group_adjustment: bool = False
+    confidence_constraints: List[float] = field(default_factory=list)
