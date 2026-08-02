@@ -44,6 +44,8 @@ def run_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTPUT_DIR, u
         media_id = raw_msg.get("media_id", "")
         media_type = raw_msg.get("media_type", "")
         
+        print(f"[{idx+1}/{len(incoming_messages)}] Processing {msg_id} (media: {bool(media_id)})")
+        
         # 1. Build typed structures
         msg_ctx = build_message_context(raw_msg, context, original_index=idx)
         user_prof = build_user_profile(user_id, context)
