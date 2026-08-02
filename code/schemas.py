@@ -519,3 +519,73 @@ class FinalRouterDecision:
     schema_repairs: int = 0
     fallback_reason: str = ""
     trace_version: str = "v14.0"
+
+
+# ============================================================
+# PHASE 15: FINAL EVIDENCE, REASON & CONFIDENCE QUALITY CONTRACTS
+# ============================================================
+
+@dataclass
+class EvidenceDecision:
+    eligible_candidate_count: int = 0
+    above_threshold_count: int = 0
+    selected_ids: List[str] = field(default_factory=list)
+    selection_scores: Dict[str, float] = field(default_factory=dict)
+    selection_reasons: Dict[str, str] = field(default_factory=dict)
+    diversity_result: str = "none"
+    none_reason: str = "no_eligible_candidate"
+    validation_result: str = "valid"
+    retrieval_version: str = "v15.0"
+
+
+@dataclass
+class ReasonDecision:
+    current_message_signals: List[str] = field(default_factory=list)
+    context_signals: List[str] = field(default_factory=list)
+    temporal_signals: List[str] = field(default_factory=list)
+    safety_signals: List[str] = field(default_factory=list)
+    historical_signals: List[str] = field(default_factory=list)
+    media_signals: List[str] = field(default_factory=list)
+    action_justification: str = ""
+    type_justification: str = ""
+    unsupported_claims: List[str] = field(default_factory=list)
+    repairs: List[str] = field(default_factory=list)
+    reason_version: str = "v15.0"
+
+
+@dataclass
+class ConfidenceDecision:
+    raw_model_confidence: float = 0.8
+    deterministic_strength: float = 0.9
+    safety_strength: float = 1.0
+    type_certainty: float = 0.9
+    temporal_certainty: float = 0.8
+    relevance_certainty: float = 0.8
+    evidence_quality: float = 0.8
+    media_quality: float = 1.0
+    provider_quality: float = 1.0
+    fallback_penalty: float = 0.0
+    schema_repair_penalty: float = 0.0
+    conflict_penalty: float = 0.0
+    final_confidence: float = 0.8
+    calibration_version: str = "v15.0"
+
+
+@dataclass
+class ReleaseCandidateManifest:
+    candidate_path: str = "outputs/phase15_release_candidate.csv"
+    candidate_hash: str = ""
+    input_hash: str = ""
+    source_commit: str = ""
+    router_version: str = "v15.0"
+    policy_version: str = "v15.0"
+    retrieval_version: str = "v15.0"
+    media_version: str = "v15.0"
+    reason_version: str = "v15.0"
+    confidence_version: str = "v15.0"
+    test_summary: Dict[str, Any] = field(default_factory=dict)
+    evaluation_summary: Dict[str, Any] = field(default_factory=dict)
+    manual_review_summary: Dict[str, Any] = field(default_factory=dict)
+    known_warnings: List[str] = field(default_factory=list)
+    freeze_status: str = "FROZEN"
+
