@@ -100,6 +100,17 @@ class ImageAnalysis(MediaAnalysis):
     is_prompt_injection: bool = False
 
 @dataclass
+class VoiceAnalysis(MediaAnalysis):
+    transcript: str = ""
+    detected_language: str = ""
+    has_financial_elements: bool = False
+    has_promotional_elements: bool = False
+    is_prompt_injection: bool = False
+    contains_otp_request: bool = False
+    contains_credential_request: bool = False
+    contains_urgent_language: bool = False
+
+@dataclass
 class EvidenceCandidate:
     message_id: str
     relationship_type: str

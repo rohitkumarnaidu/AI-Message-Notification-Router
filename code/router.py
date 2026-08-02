@@ -204,6 +204,30 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
                 action = "notify"
                 msg_type = "personal"
                 overrides.append("notify_trusted_personal_image")
+                
+    # 6. Voice Processing overrides
+    if msg_ctx.media_type == "voice" and msg_ctx.media_analysis:
+        if getattr(msg_ctx.media_analysis, 'is_prompt_injection', False):
+            overrides.append("safety_override_voice_prompt_injection")
+            action = "mute"
+            msg_type = "scam"
+            
+        # Conflict: Text is harmless, but voice has risk signals
+        if action in ("notify", "digest") and ("scam" in msg_ctx.media_analysis.risk_signals or getattr(msg_ctx.media_analysis, 'has_financial_elements', False) and not msg_ctx.deterministic_signals.get("sender_trusted_personal")):
+            overrides.append("safety_override_voice_risk")
+            action = "mute"
+            msg_type = "scam"
+            conf -= 0.2
+            
+        # Conflict: Promo elements detected in voice despite innocuous text
+        if action == "notify" and getattr(msg_ctx.media_analysis, 'has_promotional_elements', False) and not msg_ctx.deterministic_signals.get("user_opted_in"):
+            overrides.append("digest_override_voice_promo")
+            action = "digest"
+            msg_type = "promotion"
+            
+        # Voice failure/fallback penalty
+        if getattr(msg_ctx.media_analysis, 'failure', False):
+            conf -= 0.15
             
     # Ensure confidence limits and prevent automatic 1.0
     conf = max(0.0, min(0.99, conf))

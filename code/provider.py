@@ -391,7 +391,7 @@ def call_gemini(prompt: str, evidence_allowlist: List[str]) -> RouterDecision:
 
 
 def generate_routing_decision(prompt: str, evidence_allowlist: List[str] = None) -> RouterDecision:
-    """Entry point routing logic using fallback chain: NVIDIA -> Groq."""
+    """Entry point routing logic using fallback chain: NVIDIA -> Groq -> Gemini."""
     try:
         return call_nvidia(prompt, evidence_allowlist)
     except PolicyRejectionError:
@@ -405,7 +405,7 @@ def generate_routing_decision(prompt: str, evidence_allowlist: List[str] = None)
         raise
     except ProviderFallbackError as e:
         print(f"Groq Fallback: {e}")
-        raise
+        return call_gemini(prompt, evidence_allowlist)
 
 # ---------------------------------------------------------------------------
 # Provider Implementations (Media)
@@ -506,7 +506,7 @@ def transcribe_audio(path: str) -> MediaAnalysis:
         gemini_scheduler.pace()
         response = client.models.generate_content(
             model=DEFAULT_GEMINI_MODEL,
-            contents=[myfile, "Transcribe this audio strictly."]
+            contents=[myfile, "Transcribe this audio strictly. If the audio is in another language like Hindi or Hinglish, translate it accurately to English."]
         )
         gemini_scheduler.record_call()
         return MediaAnalysis(

@@ -5,14 +5,15 @@ Delegates to unified provider interface in Phase 8/10.
 import os
 import json
 import hashlib
+import time
 from pathlib import Path
-from schemas import MediaAnalysis, ImageAnalysis
+from schemas import MediaAnalysis, ImageAnalysis, VoiceAnalysis
 from config import CACHE_DIR
 import provider
 from PIL import Image
 
 _CACHE_FILE = Path(CACHE_DIR) / "media_cache.json"
-_PROMPT_VERSION = "p10v1"  # bumped for Phase 10 structured outputs
+_PROMPT_VERSION = "p11v1"  # bumped for Phase 11 voice handling
 
 def _load_cache() -> dict:
     if _CACHE_FILE.exists():
@@ -89,37 +90,71 @@ def process_media(media_id: str, media_type: str, filepath: str) -> MediaAnalysi
     if cache_key in cache:
         if media_type == "image":
             return ImageAnalysis(**cache[cache_key])
+        elif media_type == "audio" or media_type == "voice_note":
+            return VoiceAnalysis(**cache[cache_key])
         return MediaAnalysis(**cache[cache_key])
 
     try:
-        if media_type == "audio":
+        if media_type == "audio" or media_type == "voice_note":
             analysis = provider.transcribe_audio(str(full_path))
             
-            # If it's a MediaAnalysis object (like transcribed audio returning a dataclass)
-            if hasattr(analysis, "extracted_text"):
-                extracted = analysis.extracted_text.lower()
-                final_analysis = MediaAnalysis(
+            # If it's a dict
+            if isinstance(analysis, dict) and "extracted_text" in analysis:
+                extracted = analysis["extracted_text"].lower()
+                
+                # Use regexes from feature_extractor to parse risk signals from audio
+                from feature_extractor import (
+                    _OTP_REQUEST, _CREDENTIAL_REQUEST, _PAYMENT_PRESSURE,
+                    _ACCOUNT_BLOCK_THREAT, _PROMPT_INJECTION, _PROMOTION_LANGUAGE,
+                    _FINANCIAL_DATA, _IMMEDIATE_TIME, _DEADLINE, _WAITING_SIGNAL
+                )
+                
+                contains_otp = bool(_OTP_REQUEST.search(extracted))
+                contains_cred = bool(_CREDENTIAL_REQUEST.search(extracted))
+                contains_payment = bool(_PAYMENT_PRESSURE.search(extracted))
+                contains_block = bool(_ACCOUNT_BLOCK_THREAT.search(extracted))
+                contains_injection = bool(_PROMPT_INJECTION.search(extracted))
+                contains_promo = bool(_PROMOTION_LANGUAGE.search(extracted))
+                contains_financial = bool(_FINANCIAL_DATA.search(extracted))
+                contains_urgent = bool(_IMMEDIATE_TIME.search(extracted)) or bool(_DEADLINE.search(extracted)) or bool(_WAITING_SIGNAL.search(extracted)) or "urgent" in extracted
+                
+                risk_signals = []
+                if contains_otp or contains_cred or contains_block or contains_payment or contains_financial:
+                    risk_signals.append("scam")
+                    
+                urgency_signals = ["urgent"] if contains_urgent else []
+                promotion_signals = ["promo"] if contains_promo else []
+                
+                final_analysis = VoiceAnalysis(
                     media_id=media_id,
                     media_type=media_type,
                     extracted_text=extracted,
                     summary=extracted[:200],
                     language="en",
-                    urgency_signals=["urgent"] if "urgent" in extracted or "now" in extracted else [],
-                    risk_signals=["scam"] if "password" in extracted or "otp" in extracted else [],
-                    promotion_signals=["promo"] if "discount" in extracted or "sale" in extracted else [],
-                    event_signals=["event"] if "tomorrow" in extracted else [],
-                    quality="high" if analysis.success else "low",
-                    confidence=0.9 if analysis.success else 0.0,
-                    failure=not analysis.success,
-                    failure_reason=analysis.failure_category or "",
+                    urgency_signals=urgency_signals,
+                    risk_signals=risk_signals,
+                    promotion_signals=promotion_signals,
+                    event_signals=[],
+                    quality="high" if analysis.get("success") else "low",
+                    confidence=0.9 if analysis.get("success") else 0.0,
+                    failure=not analysis.get("success"),
+                    failure_reason=analysis.get("failure_category") or "",
                     processor_version=_PROMPT_VERSION,
-                    provider=analysis.provider,
-                    model=analysis.model,
-                    operation=analysis.operation,
-                    attempts=analysis.attempts,
-                    latency=analysis.latency,
-                    success=analysis.success,
-                    failure_category=analysis.failure_category
+                    provider=analysis.get("provider", ""),
+                    model=analysis.get("model", ""),
+                    operation=analysis.get("operation", ""),
+                    attempts=analysis.get("attempts", 0),
+                    latency=analysis.get("latency", 0.0),
+                    success=analysis.get("success", False),
+                    failure_category=analysis.get("failure_category"),
+                    transcript=analysis.get("extracted_text", ""),
+                    detected_language="en",
+                    has_financial_elements=contains_financial or contains_payment,
+                    has_promotional_elements=contains_promo,
+                    is_prompt_injection=contains_injection,
+                    contains_otp_request=contains_otp,
+                    contains_credential_request=contains_cred,
+                    contains_urgent_language=contains_urgent
                 )
             else:
                 raise ValueError("Transcribe audio returned unexpected format")
