@@ -9,7 +9,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 # Add code directory to sys.path to avoid shadowing standard library 'code' module
 sys.path.insert(0, str(Path(__file__).resolve().parent))

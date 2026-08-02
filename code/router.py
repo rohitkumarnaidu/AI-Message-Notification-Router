@@ -1,8 +1,20 @@
 import json
-from typing import Dict, Any, List
-from schemas import IncomingMessageContext, RouterDecision, EvidenceCandidate, FinalDecision
+from typing import Dict, Any, List, Optional
+from schemas import (
+    IncomingMessageContext, RouterDecision, EvidenceCandidate, FinalDecision,
+    SafetySignals
+)
 from provider import generate_routing_decision, ProviderFallbackError, PolicyRejectionError
 from baseline_policy import route as baseline_route
+
+# Phase 12 safety pipeline
+try:
+    from safety_detectors import extract_safety_signals
+    from safety_policy import resolve_policy
+    from unsafe_notify_validator import prevent_unsafe_notify, audit_final_output, reset_stats
+    _SAFETY_PIPELINE_AVAILABLE = True
+except ImportError:
+    _SAFETY_PIPELINE_AVAILABLE = False
 
 def build_llm_prompt(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[EvidenceCandidate]) -> str:
     """Builds the prompt string combining all contexts."""
@@ -81,13 +93,28 @@ def get_human_readable_reason(rule_id: str, action: str, msg_type: str) -> str:
 
 def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[EvidenceCandidate], raw_message: dict) -> FinalDecision:
     """
-    Main routing pipeline implementing selective_hybrid_v1:
-    1. Check Deterministic-only cases (Safety, strong history, explicit opt-out).
-    2. Try LLM Provider for ambiguous or complex cases.
-    3. Fallback to Baseline Deterministic Policy on provider error or policy rejection.
-    4. Apply Hard Policy Overrides.
+    Main routing pipeline — Phase 12 selective_hybrid_v2:
+    0. Extract Phase 12 SafetySignals (deterministic).
+    1. Check deterministic bypass rules (safety, history, opt-out).
+    2. Try provider for genuinely ambiguous cases (subordinate to safety).
+    3. Fallback to baseline on provider error.
+    4. Apply Phase 12 policy resolver (10-level priority).
+    5. Apply unsafe-notify validator.
     """
     overrides = []
+
+    # Phase 12: Extract safety signals from all sources
+    safety_signals = None
+    if _SAFETY_PIPELINE_AVAILABLE:
+        try:
+            safety_signals = extract_safety_signals(
+                msg_ctx, raw_message, profile,
+                all_message_ids=None,  # validated upstream
+                event_ids=set(),
+                evidence_timestamps={},
+            )
+        except Exception:
+            safety_signals = None  # graceful degradation, existing policy continues
     
     # 1. Evaluate baseline rules
     baseline_res = baseline_route(msg_ctx.deterministic_signals, raw_message)
@@ -236,6 +263,74 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
     if ev_ids == ["none"] and ("history" in reason.lower() or "previously" in reason.lower()):
         overrides.append("evidence_consistency_correction")
         reason = "Routed based on structural patterns and sender information without specific historical evidence."
+
+    # ----------------------------------------------------------------
+    # Phase 12: Policy Resolver (10-level priority chain)
+    # ----------------------------------------------------------------
+    if _SAFETY_PIPELINE_AVAILABLE and safety_signals is not None:
+        try:
+            media_quality = getattr(
+                msg_ctx.media_analysis, 'quality', 'none'
+            ) if msg_ctx.media_analysis else 'none'
+            if msg_ctx.media_analysis and getattr(msg_ctx.media_analysis, 'failure', False):
+                media_quality = 'failed'
+
+            policy_decision, policy_reason = resolve_policy(
+                proposed_action=action,
+                proposed_type=msg_type,
+                proposed_reason=reason,
+                proposed_confidence=conf,
+                proposed_evidence_ids=ev_ids,
+                safety_signals=safety_signals,
+                deterministic_signals=msg_ctx.deterministic_signals,
+                media_quality=media_quality,
+                evidence_quality='none',
+            )
+
+            if policy_decision.override_applied:
+                overrides.append(f"phase12_policy_{policy_decision.override_reason_code}")
+
+            action = policy_decision.final_action
+            msg_type = policy_decision.final_message_type
+            reason = policy_reason
+            ev_ids = policy_decision.allowed_evidence_ids
+            conf = max(policy_decision.confidence_floor,
+                       min(policy_decision.confidence_ceiling, conf))
+
+        except Exception:
+            pass  # graceful degradation — existing overrides already applied
+
+    # ----------------------------------------------------------------
+    # Phase 12: Unsafe-Notify Validator
+    # ----------------------------------------------------------------
+    if _SAFETY_PIPELINE_AVAILABLE and safety_signals is not None and action == "notify":
+        try:
+            media_failed = bool(
+                msg_ctx.media_analysis and
+                getattr(msg_ctx.media_analysis, 'failure', False)
+            )
+            validator_result = prevent_unsafe_notify(
+                proposed_action=action,
+                safety_signals=safety_signals,
+                deterministic_signals=msg_ctx.deterministic_signals,
+                proposed_type=msg_type,
+                proposed_reason=reason,
+                proposed_evidence_ids=ev_ids,
+                media_type=msg_ctx.media_type or '',
+                media_failed=media_failed,
+            )
+            if validator_result.blocked:
+                overrides.append(f"unsafe_notify_prevented_{validator_result.blocking_condition}")
+                action = validator_result.final_action
+                if validator_result.reason_adjustment:
+                    reason = validator_result.reason_adjustment
+                conf = max(0.0, conf + validator_result.confidence_adjustment)
+
+        except Exception:
+            pass  # graceful degradation
+
+    # Final confidence clamp
+    conf = max(0.0, min(0.99, conf))
 
     return FinalDecision(
         message_id=msg_ctx.message_id,

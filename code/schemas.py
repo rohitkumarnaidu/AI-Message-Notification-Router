@@ -170,3 +170,165 @@ class FinalDecision:
     evidence_message_ids: List[str]
     policy_overrides: List[str] = field(default_factory=list)
     validation_status: str = 'valid'
+
+
+# ============================================================
+# PHASE 12: SAFETY SCHEMA — FROZEN SHARED INTERFACES
+# ============================================================
+
+from enum import Enum
+
+
+class RiskCategory(str, Enum):
+    """Canonical risk categories. Each must have entry/exit conditions and tests."""
+    NONE = "NONE"
+    LOW_VALUE = "LOW_VALUE"
+    SPAM = "SPAM"
+    PROMOTION_UNWANTED = "PROMOTION_UNWANTED"
+    PROMPT_INJECTION = "PROMPT_INJECTION"
+    CREDENTIAL_RISK = "CREDENTIAL_RISK"
+    PAYMENT_RISK = "PAYMENT_RISK"
+    IMPERSONATION_RISK = "IMPERSONATION_RISK"
+    PHISHING_RISK = "PHISHING_RISK"
+    DANGEROUS_FORWARD = "DANGEROUS_FORWARD"
+    UNKNOWN_HIGH_RISK = "UNKNOWN_HIGH_RISK"
+
+
+# Risk tier mapping (higher = more restrictive)
+RISK_TIER_MAP = {
+    RiskCategory.NONE: 0,
+    RiskCategory.LOW_VALUE: 1,
+    RiskCategory.SPAM: 2,
+    RiskCategory.PROMOTION_UNWANTED: 2,
+    RiskCategory.DANGEROUS_FORWARD: 3,
+    RiskCategory.PROMPT_INJECTION: 4,
+    RiskCategory.UNKNOWN_HIGH_RISK: 4,
+    RiskCategory.IMPERSONATION_RISK: 5,
+    RiskCategory.PAYMENT_RISK: 6,
+    RiskCategory.PHISHING_RISK: 7,
+    RiskCategory.CREDENTIAL_RISK: 8,
+}
+
+
+@dataclass
+class SignalSource:
+    """Records where a safety signal was extracted from."""
+    source: str          # text | image_ocr | image_visual | voice_transcript | sender_meta | business_meta | group_ctx | history | link_parser | temporal
+    grounded_value: str  # the exact content fragment that triggered this signal
+    detector: str        # detector module and rule name
+    confidence: float    # 0.0-1.0 signal confidence
+    trusted: bool        # whether the source is considered trusted
+    timestamp: str = ""  # when relevant (evidence timestamps)
+
+
+@dataclass
+class SafetySignals:
+    """
+    Canonical safety signals for Phase 12.
+    All fields include source provenance via SignalSource.
+    Deterministic policy owns final safety constraints — model output cannot override.
+    """
+    # --- Credential risk signals ---
+    credential_request: bool = False
+    otp_request: bool = False
+    password_request: bool = False
+    pin_request: bool = False
+    credential_warning: bool = False   # "never share your OTP" — NOT a risk
+    credential_sources: List[SignalSource] = field(default_factory=list)
+
+    # --- Payment risk signals ---
+    payment_request: bool = False
+    payment_destination_trust: str = "unknown"  # trusted | unknown | suspicious
+    suspicious_link: bool = False
+    domain_trust: str = "unknown"       # trusted | unknown | suspicious | shortener
+    qr_present: bool = False
+    qr_decoded: Optional[str] = None    # decoded QR content if available
+    payment_sources: List[SignalSource] = field(default_factory=list)
+
+    # --- Account/social pressure signals ---
+    account_blocking_pressure: bool = False
+    reward_or_lottery: bool = False
+    impersonation_signal: bool = False
+    dangerous_forward_signal: bool = False
+    pressure_sources: List[SignalSource] = field(default_factory=list)
+
+    # --- Content signals ---
+    promotion_signal: bool = False
+    prompt_injection_signal: bool = False
+    injection_sources: List[SignalSource] = field(default_factory=list)
+
+    # --- Urgency signals ---
+    urgency_language: bool = False
+    concrete_deadline: bool = False     # specific time/date mentioned
+    urgency_sources: List[SignalSource] = field(default_factory=list)
+
+    # --- Relationship/context signals ---
+    legitimate_relationship: bool = False
+    business_relationship: bool = False
+    trusted_sender_context: bool = False
+    historical_report_signal: bool = False
+    historical_engagement_signal: bool = False
+
+    # --- Media quality ---
+    media_grounding_quality: str = "none"  # none | failed | low | medium | high
+
+    # --- Evidence quality ---
+    evidence_quality: str = "none"  # none | cross_user | future | weak | moderate | strong
+
+    # --- Conflict and uncertainty ---
+    conflicting_signals: List[str] = field(default_factory=list)
+    uncertainties: List[str] = field(default_factory=list)
+
+    # --- Risk assessment ---
+    risk_score: float = 0.0            # 0.0-1.0, computed from signal combination
+    risk_tier: int = 0                 # 0-8, from RISK_TIER_MAP
+    risk_category: str = "NONE"        # primary RiskCategory value
+    recommended_constraint: str = "none"  # none | digest | mute | mute_scam
+
+    # --- Metadata ---
+    detector_version: str = "phase12_v1"
+    multilingual_normalized: bool = False
+    detected_language: str = "unknown"
+
+
+@dataclass
+class PolicyDecision:
+    """
+    Output of the deterministic policy resolver.
+    This owns the final safety constraints — model proposal is subordinate.
+    """
+    final_action: str
+    final_message_type: str
+    override_applied: bool = False
+    override_reason_code: str = ""       # internal trace code
+    confidence_ceiling: float = 0.99     # max confidence allowed
+    confidence_floor: float = 0.0
+    required_reason_signals: List[str] = field(default_factory=list)
+    allowed_evidence_ids: List[str] = field(default_factory=list)
+    trace: List[str] = field(default_factory=list)
+    safety_signals: Optional['SafetySignals'] = None
+
+
+@dataclass
+class ExecutionTrace:
+    """Single override log entry for audit trail."""
+    step: int
+    rule: str
+    original_action: str
+    original_type: str
+    new_action: str
+    new_type: str
+    reason: str
+    confidence_delta: float = 0.0
+
+
+@dataclass
+class UnsafeNotifyResult:
+    """Result of the unsafe-notify validator."""
+    proposed_action: str
+    blocking_condition: str        # "" if not blocked
+    final_action: str
+    policy_version: str = "phase12_v1"
+    confidence_adjustment: float = 0.0
+    reason_adjustment: str = ""
+    blocked: bool = False
