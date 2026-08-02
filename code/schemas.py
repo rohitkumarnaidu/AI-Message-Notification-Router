@@ -30,3 +30,18 @@ OUTPUT_CSV_COLUMNS = (
 
 # Allowed actions in output contract
 ALLOWED_ACTIONS = {"notify", "digest", "mute"}
+
+# Allowed message types in output contract (per problem_statement.md lines 100-110)
+ALLOWED_MESSAGE_TYPES = {
+    "personal",
+    "urgent",
+    "event",
+    "payment",
+    "business_update",
+    "promotion",
+    "greeting",
+    "forward",
+    "spam",
+    "scam",
+    "unknown",
+}
