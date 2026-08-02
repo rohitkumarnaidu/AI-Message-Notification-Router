@@ -6,11 +6,27 @@ from baseline_policy import route as baseline_route
 
 def build_llm_prompt(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[EvidenceCandidate]) -> str:
     """Builds the prompt string combining all contexts."""
+    media_data = {}
+    if msg_ctx.media_analysis:
+        media_data = {
+            "type": msg_ctx.media_analysis.media_type,
+            "extracted_text": msg_ctx.media_analysis.extracted_text,
+            "visual_summary": msg_ctx.media_analysis.summary,
+            "urgency_signals": msg_ctx.media_analysis.urgency_signals,
+            "risk_signals": msg_ctx.media_analysis.risk_signals,
+            "promotion_signals": msg_ctx.media_analysis.promotion_signals
+        }
+        if hasattr(msg_ctx.media_analysis, "has_qr_code"):
+            media_data["has_qr_code"] = msg_ctx.media_analysis.has_qr_code
+            media_data["has_financial_elements"] = msg_ctx.media_analysis.has_financial_elements
+            media_data["has_promotional_elements"] = msg_ctx.media_analysis.has_promotional_elements
+
     ctx_dict = {
         "message": {
             "text": msg_ctx.text,
             "conversation_type": msg_ctx.conversation_type,
-            "has_media": bool(msg_ctx.media_type)
+            "has_media": bool(msg_ctx.media_type),
+            "media_analysis": media_data
         },
         "user_profile": {
             "quiet_hours": profile.quiet_hours,
@@ -158,6 +174,37 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
         overrides.append("policy_override_quiet_hours_downgrade")
         action = "digest"
         
+    # 5. Image Processing overrides
+    if msg_ctx.media_type == "image" and msg_ctx.media_analysis:
+        if getattr(msg_ctx.media_analysis, 'is_prompt_injection', False):
+            overrides.append("safety_override_image_prompt_injection")
+            action = "mute"
+            msg_type = "scam"
+            
+        # Conflict: Text is harmless, but image has risk signals
+        if action in ("notify", "digest") and ("scam" in msg_ctx.media_analysis.risk_signals or getattr(msg_ctx.media_analysis, 'has_financial_elements', False) and not msg_ctx.deterministic_signals.get("sender_trusted_personal")):
+            overrides.append("safety_override_image_risk")
+            action = "mute"
+            msg_type = "scam"
+            conf -= 0.2
+            
+        # Conflict: Promo elements visually detected despite innocuous text
+        if action == "notify" and getattr(msg_ctx.media_analysis, 'has_promotional_elements', False) and not msg_ctx.deterministic_signals.get("user_opted_in"):
+            overrides.append("digest_override_image_promo")
+            action = "digest"
+            msg_type = "promotion"
+            
+        # Image failure/fallback penalty
+        if getattr(msg_ctx.media_analysis, 'failure', False):
+            conf -= 0.15
+            
+        # If it's a known sender and they send a pure image without text, give it some baseline confidence boost
+        if msg_ctx.conversation_type == "personal" and not msg_ctx.text.strip():
+            if msg_ctx.deterministic_signals.get("sender_trusted_personal"):
+                action = "notify"
+                msg_type = "personal"
+                overrides.append("notify_trusted_personal_image")
+            
     # Ensure confidence limits and prevent automatic 1.0
     conf = max(0.0, min(0.99, conf))
     

@@ -91,6 +91,15 @@ class MediaAnalysis:
     failure_category: Optional[str] = None
 
 @dataclass
+class ImageAnalysis(MediaAnalysis):
+    ocr_text: str = ""
+    visual_summary: str = ""
+    has_qr_code: bool = False
+    has_financial_elements: bool = False
+    has_promotional_elements: bool = False
+    is_prompt_injection: bool = False
+
+@dataclass
 class EvidenceCandidate:
     message_id: str
     relationship_type: str

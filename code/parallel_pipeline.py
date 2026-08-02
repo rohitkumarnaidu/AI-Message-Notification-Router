@@ -19,7 +19,7 @@ from schemas import OUTPUT_CSV_COLUMNS
 from validators import validate_output_records, validate_row_count_and_ids
 
 # Directories
-CACHE_DIR = Path(".cache/phase8/enrichments")
+CACHE_DIR = Path(".cache/phase10/enrichments")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 SCHEMA_VERSION = "1.0"
@@ -50,10 +50,13 @@ def _load_jsonl_dict(filepath: Path) -> dict:
                     pass
     return result
 
-def run_parallel_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTPUT_DIR, use_samples: bool = False, subset_limit: int = 0):
+def run_parallel_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTPUT_DIR, use_samples: bool = False, subset_limit: int = 0, custom_input: str = None):
     print(f"Loading dataset from: {dataset_dir}...")
     context = load_full_dataset(Path(dataset_dir))
-    if use_samples:
+    if custom_input:
+        print(f"Using custom input file: {custom_input}...")
+        context["messages"] = load_csv_records(Path(custom_input))
+    elif use_samples:
         print("Using sample_messages.csv instead of full messages...")
         context["messages"] = load_csv_records(Path(dataset_dir) / "sample_messages.csv")
         
@@ -156,9 +159,9 @@ def run_parallel_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTP
         evidence = retrieve_evidence(msg_ctx, context)
         
         if img_rec and img_rec.get("analysis"):
-            from schemas import MediaAnalysis
+            from schemas import MediaAnalysis, ImageAnalysis
             val = img_rec["analysis"]
-            msg_ctx.media_analysis = MediaAnalysis(**val) if isinstance(val, dict) else val
+            msg_ctx.media_analysis = ImageAnalysis(**val) if isinstance(val, dict) else val
         if aud_rec and aud_rec.get("analysis"):
             from schemas import MediaAnalysis
             val = aud_rec["analysis"]
@@ -247,9 +250,9 @@ def run_parallel_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTP
     validate_output_records(output_records)
     
     # Write Final Output
-    out_path = Path(output_dir) / "phase8_parallel_candidate.csv"
+    out_path = Path(output_dir) / "phase10_image_candidate.csv"
     if use_samples:
-        out_path = Path(output_dir) / "phase8_sample_candidate.csv"
+        out_path = Path(output_dir) / "phase10_sample_candidate.csv"
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=OUTPUT_CSV_COLUMNS)
         writer.writeheader()
@@ -259,10 +262,25 @@ def run_parallel_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTP
     print(f"Output saved to {out_path}")
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "test":
-        run_parallel_pipeline(subset_limit=15)
-    elif len(sys.argv) > 1 and sys.argv[1] == "sample":
-        run_parallel_pipeline(use_samples=True)
+    import argparse
+    parser = argparse.ArgumentParser(description="Run parallel LLM routing pipeline")
+    parser.add_argument("--use-samples", action="store_true", help="Use sample dataset for quick testing")
+    parser.add_argument("--input", type=str, help="Path to input dataset (overrides --use-samples)")
+    parser.add_argument("--output-dir", type=str, default="outputs", help="Directory for output CSV")
+    args = parser.parse_args()
+    
+    custom_input = None
+    use_samples = False
+    if args.input:
+        msg_file = args.input
+        print(f"Loading dataset from custom input: {msg_file}...")
+        custom_input = args.input
+    elif args.use_samples:
+        msg_file = "dataset/sample_messages.csv"
+        print(f"Loading dataset from: {msg_file} (samples)...")
+        use_samples = True
     else:
-        run_parallel_pipeline()
+        msg_file = "dataset/messages.csv"
+        print(f"Loading dataset from: {msg_file}...")
+        
+    run_parallel_pipeline("dataset", args.output_dir, use_samples=use_samples, custom_input=custom_input)
