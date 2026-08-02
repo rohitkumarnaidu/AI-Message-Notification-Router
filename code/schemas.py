@@ -380,6 +380,54 @@ class InterruptionSignals:
     notification_load: str = "normal" # low | normal | high
     group_muted: bool = False
     direct_mention: bool = False
+
+# ============================================================
+# PHASE 13: INTERRUPTION POLICY SCHEMA — FROZEN SHARED INTERFACES
+# ============================================================
+
+@dataclass
+class TemporalContext:
+    message_timestamp: str = ""
+    normalized_timezone: str = "UTC"
+    local_datetime: Optional[str] = None
+    day_of_week: str = ""
+    is_quiet_hours: bool = False
+    quiet_hours_source: str = ""
+    deadline_timestamp: Optional[str] = None
+    deadline_status: str = "none" # none | future | expired
+    time_until_deadline: Optional[float] = None
+    event_timestamp: Optional[str] = None
+    event_status: str = "none"
+    temporal_phrases: List[str] = field(default_factory=list)
+    temporal_uncertainties: List[str] = field(default_factory=list)
+
+@dataclass
+class RelevanceSignals:
+    direct_message: bool = False
+    direct_mention: bool = False
+    active_relationship: bool = False
+    recent_engagement: bool = False
+    current_transaction: bool = False
+    current_delivery: bool = False
+    user_opt_in: bool = False
+    user_opt_out: bool = False
+    personal_request: bool = False
+    required_response: bool = False
+    consequence_of_delay: str = "none"
+
+@dataclass
+class InterruptionSignals:
+    genuine_urgency: bool = False
+    urgency_language_only: bool = False
+    immediate_action_required: bool = False
+    deadline_strength: float = 0.0
+    user_consequence: float = 0.0
+    personal_relevance: float = 0.0
+    safety_risk: float = 0.0
+    quiet_hours: bool = False
+    notification_load: str = "normal" # low | normal | high
+    group_muted: bool = False
+    direct_mention: bool = False
     group_admin: bool = False
     duplicate_or_repeated: bool = False
     promotion: bool = False
@@ -400,3 +448,74 @@ class InterruptionDecision:
     notification_load_adjustment: bool = False
     group_adjustment: bool = False
     confidence_constraints: List[float] = field(default_factory=list)
+
+
+# ============================================================
+# PHASE 14: STRUCTURED ROUTER & BOUNDARY CONTRACTS
+# ============================================================
+
+class ExecutionMode(str, Enum):
+    DETERMINISTIC_DIRECT = "DETERMINISTIC_DIRECT"
+    NVIDIA_LIVE = "NVIDIA_LIVE"
+    GROQ_LIVE = "GROQ_LIVE"
+    GEMINI_LIVE = "GEMINI_LIVE"
+    SCHEMA_REPAIR = "SCHEMA_REPAIR"
+    NETWORK_FALLBACK = "NETWORK_FALLBACK"
+    RATE_LIMIT_FALLBACK = "RATE_LIMIT_FALLBACK"
+    POLICY_REJECTION_FALLBACK = "POLICY_REJECTION_FALLBACK"
+    VALIDATION_FALLBACK = "VALIDATION_FALLBACK"
+    DETERMINISTIC_FINAL_FALLBACK = "DETERMINISTIC_FINAL_FALLBACK"
+
+
+@dataclass
+class RouterInput:
+    message_id: str
+    original_index: int = 0
+    receiving_user_context: Dict[str, Any] = field(default_factory=dict)
+    sender_context: Dict[str, Any] = field(default_factory=dict)
+    group_context: Optional[Dict[str, Any]] = None
+    business_context: Optional[Dict[str, Any]] = None
+    current_message_text: str = ""
+    image_analysis: Optional[Any] = None
+    voice_analysis: Optional[Any] = None
+    eligible_evidence: List[Dict[str, Any]] = field(default_factory=list)
+    evidence_allowlist: List[str] = field(default_factory=list)
+    temporal_context: Optional[TemporalContext] = None
+    safety_signals: Optional[SafetySignals] = None
+    relevance_signals: Optional[RelevanceSignals] = None
+    interruption_signals: Optional[InterruptionSignals] = None
+    provider_budget: int = 3
+    execution_policy_version: str = "v14.0"
+
+
+@dataclass
+class RouterProposal:
+    action: str
+    message_type: str
+    reason: str
+    confidence: float
+    evidence_message_ids: List[str] = field(default_factory=list)
+    decision_signals: List[str] = field(default_factory=list)
+    uncertainties: List[str] = field(default_factory=list)
+    provider: str = "deterministic"
+    model: str = "heuristic"
+    prompt_version: str = "v14"
+    schema_version: str = "v14"
+    attempts: int = 1
+
+
+@dataclass
+class FinalRouterDecision:
+    message_id: str
+    action: str
+    message_type: str
+    reason: str
+    confidence: float
+    evidence_message_ids: List[str]
+    proposal_source: str = "preclassifier"
+    execution_mode: ExecutionMode = ExecutionMode.DETERMINISTIC_DIRECT
+    policy_override: bool = False
+    override_reason: str = ""
+    schema_repairs: int = 0
+    fallback_reason: str = ""
+    trace_version: str = "v14.0"

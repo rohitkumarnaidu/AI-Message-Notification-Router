@@ -26,6 +26,16 @@ try:
 except ImportError:
     _INTERRUPTION_PIPELINE_AVAILABLE = False
 
+# Phase 14 preclassifier and structured contracts
+try:
+    from preclassifier import preclassify_message
+    from schemas import RouterInput, RouterProposal, ExecutionMode, FinalRouterDecision
+    _PRECLASSIFIER_AVAILABLE = True
+except ImportError:
+    _PRECLASSIFIER_AVAILABLE = False
+
+
+
 def build_llm_prompt(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[EvidenceCandidate]) -> str:
     """Builds the prompt string combining all contexts."""
     media_data = {}
@@ -103,15 +113,15 @@ def get_human_readable_reason(rule_id: str, action: str, msg_type: str) -> str:
 
 def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[EvidenceCandidate], raw_message: dict) -> FinalDecision:
     """
-    Main routing pipeline — Phase 12 selective_hybrid_v2:
-    0. Extract Phase 12 SafetySignals (deterministic).
-    1. Check deterministic bypass rules (safety, history, opt-out).
-    2. Try provider for genuinely ambiguous cases (subordinate to safety).
-    3. Fallback to baseline on provider error.
-    4. Apply Phase 12 policy resolver (10-level priority).
-    5. Apply unsafe-notify validator.
+    Main routing pipeline — Phase 14 structured selective hybrid router
     """
     overrides = []
+    action = "digest"
+    msg_type = "unknown"
+    reason = "Default routing"
+    conf = 0.5
+    ev_ids = ["none"]
+
 
     # Phase 12: Extract safety signals from all sources
     safety_signals = None
@@ -126,29 +136,58 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
         except Exception:
             safety_signals = None  # graceful degradation, existing policy continues
     
-    # 1. Evaluate baseline rules
-    baseline_res = baseline_route(msg_ctx.deterministic_signals, raw_message)
-    triggered_rules = baseline_res.get("triggered_rules", [])
-    primary_rule = triggered_rules[0] if triggered_rules else "default_conservative"
-    
-    # Define rules that completely bypass the LLM (Selective Hybrid escalation)
-    deterministic_bypass_rules = {
-        "prompt_injection_detected", "otp_scam", "credential_request", 
-        "account_block_scam", "qr_payment_scam", "lottery_scam", 
-        "domain_mismatch_scam", "financial_data_scam", 
-        "opted_out_promotion", "harmless_greeting", 
-        "report_and_dismiss_history", "repeated_forward_muted"
-    }
+    # Phase 14: Construct canonical RouterInput & run preclassifier
+    router_input = RouterInput(
+        message_id=msg_ctx.message_id,
+        original_index=msg_ctx.original_index,
+        current_message_text=msg_ctx.text,
+        image_analysis=msg_ctx.media_analysis if msg_ctx.media_type == "image" else None,
+        voice_analysis=msg_ctx.media_analysis if msg_ctx.media_type == "voice" else None,
+        evidence_allowlist=[e.message_id for e in evidence],
+        safety_signals=safety_signals
+    )
 
-    if primary_rule in deterministic_bypass_rules:
-        # Fast-path: bypass LLM
-        action = baseline_res.get("action", "digest")
-        msg_type = baseline_res.get("message_type", "unknown")
-        reason = get_human_readable_reason(primary_rule, action, msg_type)
-        conf = float(baseline_res.get("confidence", 0.8))
-        ev_ids = [e.message_id for e in evidence[:3]]
-        if not ev_ids:
-            ev_ids = ["none"]
+    is_deterministic = False
+    if _PRECLASSIFIER_AVAILABLE:
+        try:
+            is_deterministic, pre_proposal, exec_mode, pre_reason = preclassify_message(router_input)
+            if is_deterministic:
+                action = pre_proposal.action
+                msg_type = pre_proposal.message_type
+                reason = pre_proposal.reason
+                conf = pre_proposal.confidence
+                ev_ids = pre_proposal.evidence_message_ids
+                if not ev_ids or (len(ev_ids) == 1 and ev_ids[0].lower() == "none"):
+                    ev_ids = ["none"]
+                overrides.append(f"preclassifier_direct_{exec_mode.value}")
+        except Exception:
+            is_deterministic = False
+
+    # 1. Evaluate baseline rules if not preclassified deterministically
+    if not is_deterministic:
+        baseline_res = baseline_route(msg_ctx.deterministic_signals, raw_message)
+        triggered_rules = baseline_res.get("triggered_rules", [])
+        primary_rule = triggered_rules[0] if triggered_rules else "default_conservative"
+        
+        # Define rules that completely bypass the LLM (Selective Hybrid escalation)
+        deterministic_bypass_rules = {
+            "prompt_injection_detected", "otp_scam", "credential_request", 
+            "account_block_scam", "qr_payment_scam", "lottery_scam", 
+            "domain_mismatch_scam", "financial_data_scam", 
+            "opted_out_promotion", "harmless_greeting", 
+            "report_and_dismiss_history", "repeated_forward_muted"
+        }
+
+        if primary_rule in deterministic_bypass_rules:
+            # Fast-path: bypass LLM
+            action = baseline_res.get("action", "digest")
+            msg_type = baseline_res.get("message_type", "unknown")
+            reason = get_human_readable_reason(primary_rule, action, msg_type)
+            conf = float(baseline_res.get("confidence", 0.8))
+            ev_ids = [e.message_id for e in evidence[:3]]
+            if not ev_ids:
+                ev_ids = ["none"]
+
     else:
         # 2. Model-escalated cases
         try:
