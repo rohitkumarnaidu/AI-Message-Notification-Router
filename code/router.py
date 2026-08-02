@@ -94,6 +94,8 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
         reason = get_human_readable_reason(primary_rule, action, msg_type)
         conf = float(baseline_res.get("confidence", 0.8))
         ev_ids = [e.message_id for e in evidence[:3]]
+        if not ev_ids:
+            ev_ids = ["none"]
     else:
         # 2. Model-escalated cases
         try:
@@ -106,6 +108,10 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
             reason = llm_decision.reason
             conf = llm_decision.confidence
             ev_ids = llm_decision.evidence_message_ids
+            if not ev_ids:
+                ev_ids = ["none"]
+            elif len(ev_ids) == 1 and ev_ids[0].lower() == "none":
+                ev_ids = ["none"]
             
             # Penalize confidence if media was present but unavailable
             if msg_ctx.deterministic_signals.get("media_present") and not msg_ctx.deterministic_signals.get("media_available"):
@@ -118,7 +124,9 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
             msg_type = "spam" if action == "mute" else "unknown"
             reason = "Content flagged by provider safety policies; safely routed to prevent exposure."
             conf = 0.5  # low confidence because we couldn't properly analyze
-            ev_ids = [ev.message_id for ev in evidence[:3]]
+            ev_ids = [e.message_id for e in evidence[:3]]
+            if not ev_ids:
+                ev_ids = ["none"]
             
         except ProviderFallbackError:
             # 3b. Graceful Deterministic Fallback on API / Quota failure
@@ -129,6 +137,8 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
             # Penalize confidence for falling back on a complex case
             conf = max(0.4, float(baseline_res.get("confidence", 0.6)) - 0.1)
             ev_ids = [e.message_id for e in evidence[:3]]
+            if not ev_ids:
+                ev_ids = ["none"]
 
     # 4. Hard Safety / Overrides Policy
     # Never override Scam -> notify.
@@ -150,6 +160,11 @@ def route_message(msg_ctx: IncomingMessageContext, profile: Any, evidence: List[
         
     # Ensure confidence limits and prevent automatic 1.0
     conf = max(0.0, min(0.99, conf))
+    
+    # Rule 21: Reason-to-evidence consistency
+    if ev_ids == ["none"] and ("history" in reason.lower() or "previously" in reason.lower()):
+        overrides.append("evidence_consistency_correction")
+        reason = "Routed based on structural patterns and sender information without specific historical evidence."
 
     return FinalDecision(
         message_id=msg_ctx.message_id,

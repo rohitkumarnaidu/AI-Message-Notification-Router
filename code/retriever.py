@@ -1,6 +1,7 @@
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Set
 from schemas import EvidenceCandidate, IncomingMessageContext
+from datetime import datetime
 
 _STOPWORDS = frozenset([
     "the", "and", "for", "that", "this", "with", "have", "from", "your",
@@ -18,7 +19,7 @@ def _tokens(text: str) -> set[str]:
     return set(words) - _STOPWORDS
 
 
-def retrieve_evidence(msg_ctx: IncomingMessageContext, full_context: Dict[str, Any], max_evidence: int = 3) -> List[EvidenceCandidate]:
+def retrieve_evidence(msg_ctx: IncomingMessageContext, full_context: Dict[str, Any], max_evidence: int = 3, min_score_threshold: int = 3) -> List[EvidenceCandidate]:
     """Retrieve historical evidence returned as typed candidates."""
     
     user_id = msg_ctx.user_context.get("user_id", "")
@@ -35,91 +36,100 @@ def retrieve_evidence(msg_ctx: IncomingMessageContext, full_context: Dict[str, A
     candidates: List[EvidenceCandidate] = []
 
     for h in history:
-        # Filter to same user_id
+        h_id = h.get("message_id", "")
+        # Rule 15: Receiving-user isolation
         if h.get("user_id") != user_id or not user_id:
             continue
             
-        # Strict temporal order check
+        # Rule 16: Temporal eligibility
         h_created = h.get("created_at", "")
         if created_at and h_created >= created_at:
             continue
 
-        h_id = h.get("message_id", "")
-        # Prevent leakage of prediction IDs
+        # Prevent leakage of prediction IDs (e.g. msg_...)
         if not h_id or h_id.startswith("msg_"):
             continue
 
         rel_type = "none"
-        score = 0
+        relationship_score = 0
         
-        # Sender / Business match (+3)
-        if (sender_id and h.get("sender_user_id") == sender_id):
-            score += 3
+        # Rule 17: Relationship-aware candidate generation
+        if sender_id and h.get("sender_user_id") == sender_id:
+            relationship_score += 3
             rel_type = "same_sender"
-        elif (business_id and h.get("business_id") == business_id):
-            score += 3
+        elif business_id and h.get("business_id") == business_id:
+            relationship_score += 3
             rel_type = "same_business"
             
-        # Group match (+2)
         if group_id and h.get("group_id") == group_id and conv_type == "group":
-            score += 2
+            relationship_score += 2
             rel_type = "same_group" if rel_type == "none" else rel_type
             
-        # Conversation type match (+1)
         if conv_type and h.get("conversation_type") == conv_type:
-            score += 1
+            relationship_score += 1
 
         # Behavioral event matches
         ev = events_idx.get(h_id)
         behavioral_signal = "none"
+        behavioral_score = 0
         if ev:
-            if ev.get("message_reported", "").strip() in ("1", "true", "True"):
-                score += 3
+            if str(ev.get("message_reported", "")).strip().lower() in ("1", "true"):
+                behavioral_score += 3
                 behavioral_signal = "reported"
-            elif ev.get("muted_after_message", "").strip() in ("1", "true", "True"):
-                score += 2
+            elif str(ev.get("muted_after_message", "")).strip().lower() in ("1", "true"):
+                behavioral_score += 2
                 behavioral_signal = "muted"
-            elif ev.get("notification_dismissed", "").strip() in ("1", "true", "True"):
-                score += 1
+            elif str(ev.get("notification_dismissed", "")).strip().lower() in ("1", "true"):
+                behavioral_score += 1
                 behavioral_signal = "dismissed"
-            elif ev.get("message_replied", "").strip() in ("1", "true", "True"):
-                score += 1
+            elif str(ev.get("message_replied", "")).strip().lower() in ("1", "true"):
+                behavioral_score += 1
                 behavioral_signal = "replied"
 
-        # Token overlap (+1 per shared token, max +2)
+        # Content/Lexical overlap (+1 per shared token, max +2)
         h_tokens = _tokens(h.get("message_text", ""))
-        overlap = len(msg_tokens.intersection(h_tokens))
-        score += min(2, overlap)
+        lexical_score = min(2, len(msg_tokens.intersection(h_tokens)))
 
-        if score > 0:
+        # Rule 18: Relevance scoring
+        total_score = relationship_score + behavioral_score + lexical_score
+        
+        # Rule 19: Evidence-threshold
+        if total_score >= min_score_threshold:
             candidates.append(EvidenceCandidate(
                 message_id=h_id,
                 relationship_type=rel_type,
                 behavioral_signal=behavioral_signal,
                 timestamp=h_created,
-                lexical_score=overlap,
-                semantic_score=0.0,
+                lexical_score=lexical_score,
+                semantic_score=float(total_score), # Using semantic_score to store total_score temporarily
                 recency_score=1.0,
                 eligibility=True,
                 exclusion_reason="",
             ))
 
-    # Sort by overall score (sum of lexical, relational), then recency
+    # Sort by overall score, then recency
     candidates.sort(
-        key=lambda x: (
-            x.lexical_score + (3 if x.relationship_type != 'none' else 0) + (2 if x.behavioral_signal != 'none' else 0), 
-            x.timestamp
-        ), 
+        key=lambda x: (x.semantic_score, x.timestamp), 
         reverse=True
     )
 
-    result = []
-    seen = set()
+    # Rule 20: Evidence diversity and deduplication
+    result: List[EvidenceCandidate] = []
+    seen_ids: Set[str] = set()
+    seen_rel_types: Set[str] = set()
+
     for c in candidates:
-        if c.message_id not in seen:
-            seen.add(c.message_id)
-            result.append(c)
-            if len(result) >= max_evidence:
-                break
+        if c.message_id in seen_ids:
+            continue
+            
+        # Diversity check: limit 2 per relationship type unless high score
+        if c.relationship_type in seen_rel_types and len([r for r in result if r.relationship_type == c.relationship_type]) >= 2:
+            continue
+
+        seen_ids.add(c.message_id)
+        seen_rel_types.add(c.relationship_type)
+        result.append(c)
+        if len(result) >= max_evidence:
+            break
 
     return result

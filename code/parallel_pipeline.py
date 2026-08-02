@@ -250,7 +250,6 @@ def run_parallel_pipeline(dataset_dir: str = DATASET_DIR, output_dir: str = OUTP
     out_path = Path(output_dir) / "phase8_parallel_candidate.csv"
     if use_samples:
         out_path = Path(output_dir) / "phase8_sample_candidate.csv"
-        
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=OUTPUT_CSV_COLUMNS)
         writer.writeheader()
