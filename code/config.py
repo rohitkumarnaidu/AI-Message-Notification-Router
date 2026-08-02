@@ -59,6 +59,17 @@ MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "1"))
 MAX_CALLS_PER_MESSAGE = int(os.environ.get("MAX_CALLS_PER_MESSAGE", "2"))
 TIMEOUT_SECONDS = int(os.environ.get("TIMEOUT_SECONDS", "30"))
 
+# Rate-limit safe execution
+# Free tier typically: 15 RPM for gemini-2.0-flash-lite, 10 RPM for gemini-2.0-flash
+# Set to conservative default to avoid systematic quota exhaustion
+MAX_REQUESTS_PER_MINUTE = int(os.environ.get("MAX_REQUESTS_PER_MINUTE", "10"))
+MIN_SECONDS_BETWEEN_CALLS = float(os.environ.get("MIN_SECONDS_BETWEEN_CALLS", "7.0"))
+
+# Verified working model IDs (as of 2026-08-02):
+# gemini-2.0-flash-lite, gemini-2.0-flash, gemini-2.5-flash
+# gemini-3.5-flash does NOT exist — using gemini-2.0-flash-lite as verified default
+DEFAULT_GEMINI_MODEL = "gemini-2.0-flash-lite"
+
 
 
 def get_env_var(key: str, default: str | None = None) -> str | None:
