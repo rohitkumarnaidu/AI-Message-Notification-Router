@@ -1,0 +1,16 @@
+file,path,size_bytes,row_count,col_count,headers,primary_key,read_status
+messages.csv,dataset/messages.csv,23248,110,11,"message_id,user_id,conversation_type,group_id,business_id,sender_user_id,created_at,message_text,media_type,media_id,forwarded_count",message_id,OK
+sample_messages.csv,dataset/sample_messages.csv,10049,30,16,"message_id,user_id,conversation_type,group_id,business_id,sender_user_id,created_at,message_text,media_type,media_id,forwarded_count,action,message_type,reason,confidence,evidence_message_ids",message_id,OK
+users.csv,dataset/users.csv,1731,54,6,"user_id,do_not_disturb_window,messages_opened_30d,messages_replied_30d,notifications_dismissed_30d,messages_reported_30d",user_id,OK
+groups.csv,dataset/groups.csv,1586,23,7,"group_id,group_name,group_type,member_count,admin_count,created_at,messages_30d",group_id,OK
+group_members.csv,dataset/group_members.csv,18412,401,9,"group_id,user_id,role,joined_at,messages_sent_30d,messages_read_30d,replies_sent_30d,notifications_dismissed_30d,group_muted_by_user",group_id+user_id,OK
+business_accounts.csv,dataset/business_accounts.csv,9725,110,11,"business_id,display_name,brand_name,category,verified,official_domain,domain_used_by_sender,account_age_days,messages_sent_30d,user_reports_30d,domain_used_by_sender_age_days",business_id,OK
+user_business_history.csv,dataset/user_business_history.csv,9047,106,12,"user_id,business_id,relationship_type,first_interaction_date,last_order_date,total_orders,last_booking_date,last_payment_date,opted_in,opted_out,messages_opened_from_business,messages_dismissed_from_business",user_id+business_id,OK
+message_history.csv,dataset/message_history.csv,77010,412,11,"message_id,user_id,conversation_type,group_id,business_id,sender_user_id,created_at,message_text,media_type,media_id,forwarded_count",message_id,OK
+message_events.csv,dataset/message_events.csv,13403,412,8,"user_id,message_id,message_opened,message_replied,reaction_time_minutes,notification_dismissed,muted_after_message,message_reported",user_id+message_id,OK
+images.csv,dataset/images.csv,700,20,2,"image_id,file_path",image_id,OK
+voice_notes.csv,dataset/voice_notes.csv,428,13,2,"voice_note_id,file_path",voice_note_id,OK
+daily_notification_summary.csv,dataset/daily_notification_summary.csv,16781,756,4,"user_id,date,notifications_received,notifications_opened",user_id+date,OK
+output.csv,dataset/output.csv,1611,110,6,"message_id,action,message_type,reason,confidence,evidence_message_ids",message_id,OK
+media/images,dataset/media/images/,6309610,20 files,N/A,"img_001.jpg to img_026.jpg (gap: img_009 img_015 img_017-019 img_021)",N/A,OK
+media/audio,dataset/media/audio/,5101469,13 files,N/A,"vn_001.mp3 to vn_015.mp3 (gap: vn_010 vn_011)",N/A,OK
