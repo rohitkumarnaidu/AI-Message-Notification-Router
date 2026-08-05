@@ -44,6 +44,13 @@ graph TD
 - **Context-Aware Reasoning:** Leverages historical message data, user notification behavior, and group metadata to make highly personalized routing decisions.
 - **Resumable Caching:** Media extractions are hashed and cached on disk to minimize API latency and bypass rate-limiting.
 
+## Tech Stack
+
+- **Frontend:** Next.js (App Router), React, TailwindCSS, Framer Motion
+- **Backend:** FastAPI, Python 3.10
+- **AI Models:** Gemini 2.5 Flash Vision, Groq Whisper (whisper-large-v3-turbo)
+- **Deployment:** Docker, Docker Compose, GitHub Actions CI/CD
+
 ## Output Schema
 
 For each processed message, the system produces a structured output:
