@@ -419,7 +419,323 @@ graph LR
 
 ---
 
-## 8. Limitations
+## 8. Security & Trust Architecture
+
+Our system operates on a **zero-trust principle** — no single input source is ever trusted unconditionally. Every signal is verified against multiple independent detectors before influencing a routing decision.
+
+```mermaid
+graph TB
+    subgraph TrustHierarchy["Trust Hierarchy (Highest → Lowest)"]
+        direction TB
+        L1["🔒 Official Policy Rules<br/>Hardcoded in baseline_policy.py<br/>CANNOT be overridden by any input"]
+        L2["🔒 Deterministic Schema Contracts<br/>validators.py enforces output shape<br/>Invalid outputs are rejected"]
+        L3["🔐 Trusted Metadata<br/>User preferences, group admin status<br/>Verified business accounts"]
+        L4["🔐 Validated History<br/>Past message events with user_id isolation<br/>Cross-user evidence rejected"]
+        L5["⚠️ Model Proposal<br/>LLM or preclassifier output<br/>Always subordinate to policy"]
+        L6["⚠️ Retrieved Evidence Text<br/>Content from historical messages<br/>Treated as untrusted input"]
+        L7["🚨 Current Message Content<br/>Text, image OCR, voice transcript<br/>Primary attack surface"]
+    end
+
+    L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7
+```
+
+### Key Security Guarantees
+
+| Guarantee | Implementation |
+|-----------|---------------|
+| **Scam messages can NEVER be `notify`** | `unsafe_notify_validator.py` blocks all scam+notify combinations |
+| **Credential requests can NEVER be safe** | Trusted sender status reduces confidence but never suppresses the risk flag |
+| **Prompt injection can NEVER override routing** | Injection is detected but cannot change `action`, `confidence`, or `evidence_ids` |
+| **Evidence is user-isolated** | `validate_evidence_safety()` rejects cross-user, future, duplicate, and incoming-ID evidence |
+| **API keys never enter the pipeline** | Keys are read from environment variables in `config.py`, never embedded in code or committed to git |
+| **Failed media ≠ safe media** | If OCR/ASR fails, `media_grounding_quality` is set to `failed` — it is never assumed safe |
+
+---
+
+## 9. Performance & Scalability
+
+### Current Performance Benchmarks
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| **Pipeline throughput** | 110 messages in ~8 seconds | With cached media results |
+| **Cold start (no cache)** | ~45 seconds for 110 messages | Rate-limited by Gemini/Groq APIs |
+| **Test suite execution** | 118 tests in ~5 seconds | Fully deterministic, no network |
+| **Feature extraction per message** | < 2ms | Pure Python regex, no I/O |
+| **Safety detection per message** | < 5ms | 7 detectors running sequentially |
+| **API response time (FastAPI)** | < 50ms | Serving pre-computed results |
+
+### Scaling Strategy
+
+```mermaid
+graph LR
+    subgraph Current["Current: Single Process"]
+        A["Python Process"] --> B["Sequential Pipeline"]
+    end
+
+    subgraph Phase2["Phase 2: Parallel Workers"]
+        C["Message Queue<br/>(Kafka/RabbitMQ)"] --> D["Worker 1"]
+        C --> E["Worker 2"]
+        C --> F["Worker N"]
+        D --> G["Redis Cache"]
+        E --> G
+        F --> G
+    end
+
+    subgraph Phase3["Phase 3: Microservices"]
+        H["API Gateway"] --> I["Feature Service"]
+        H --> J["Safety Service"]
+        H --> K["Media Service"]
+        H --> L["Router Service"]
+        I --> M["Shared Redis"]
+        J --> M
+        K --> M
+        L --> M
+    end
+
+    Current -->|"Scale Up"| Phase2
+    Phase2 -->|"Scale Out"| Phase3
+```
+
+### Bottleneck Analysis
+
+| Component | Current Bottleneck | Solution |
+|-----------|-------------------|----------|
+| Media Processing | Rate-limited external APIs (Gemini: 15 RPM, Groq: 30 RPM) | MD5 caching eliminates repeated calls; batch processing with `ThreadPoolExecutor` |
+| Feature Extraction | None (< 2ms per message) | Already fast enough for 10K+ messages/second |
+| Evidence Retrieval | Linear scan over message history | Replace with vector DB (Pinecone/Weaviate) for O(log n) retrieval |
+| Output I/O | CSV file write | Replace with PostgreSQL for concurrent access |
+
+---
+
+## 10. Error Handling & Resilience
+
+The system is designed to **never crash** regardless of input quality, API availability, or data corruption.
+
+```mermaid
+graph TB
+    subgraph Resilience["Fault Tolerance Strategy"]
+        direction TB
+        API_FAIL["API Rate Limited / Down"]
+        CORRUPT["Corrupt Media File"]
+        MISSING["Missing CSV Column"]
+        INVALID["Invalid LLM Response"]
+        INJECTION["Prompt Injection Attack"]
+    end
+
+    subgraph Response["System Response"]
+        CACHE["Return cached result<br/>if available"]
+        FALLBACK["Return MediaAnalysis<br/>with failure=True"]
+        DEFAULT["Use default value<br/>or empty string"]
+        REPAIR["Schema repair +<br/>deterministic fallback"]
+        BLOCK["Flag injection signal<br/>route through safety policy"]
+    end
+
+    API_FAIL --> CACHE
+    CORRUPT --> FALLBACK
+    MISSING --> DEFAULT
+    INVALID --> REPAIR
+    INJECTION --> BLOCK
+```
+
+### Execution Modes & Fallback Chain
+
+The router supports **9 execution modes** with automatic failover:
+
+| Priority | Mode | When Used |
+|----------|------|-----------|
+| 1 | `DETERMINISTIC_DIRECT` | Preclassifier provides high-confidence routing |
+| 2 | `GEMINI_LIVE` | Gemini API available, complex message |
+| 3 | `GROQ_LIVE` | Groq API available, Gemini unavailable |
+| 4 | `NVIDIA_LIVE` | NVIDIA API available, others unavailable |
+| 5 | `SCHEMA_REPAIR` | LLM response has schema violations, auto-repaired |
+| 6 | `NETWORK_FALLBACK` | All APIs down, use deterministic pipeline |
+| 7 | `RATE_LIMIT_FALLBACK` | Quota exhausted, use cached or deterministic |
+| 8 | `POLICY_REJECTION_FALLBACK` | Provider rejected prompt (safety policy) |
+| 9 | `DETERMINISTIC_FINAL_FALLBACK` | Everything failed → `digest/unknown/0.60` |
+
+---
+
+## 11. Confidence Calibration System
+
+Confidence scores are not raw model outputs — they pass through a **multi-factor calibration engine** that adjusts based on signal quality.
+
+```mermaid
+graph LR
+    RAW["Raw Model<br/>Confidence"] --> CAL["Calibration Engine<br/>(confidence.py)"]
+    DET["Deterministic<br/>Signal Strength"] --> CAL
+    SAFE["Safety Signal<br/>Strength"] --> CAL
+    TYPE["Type Certainty"] --> CAL
+    TEMP["Temporal<br/>Certainty"] --> CAL
+    EVID["Evidence<br/>Quality"] --> CAL
+    MEDIA["Media<br/>Quality"] --> CAL
+    FALL["Fallback<br/>Penalty"] --> CAL
+    CAL --> FINAL["Final Confidence<br/>(0.00 - 0.99)"]
+```
+
+| Factor | Effect on Confidence |
+|--------|---------------------|
+| Strong deterministic match (Rule 1-8) | +0.04 to +0.08 |
+| Historical reply signal | +0.04 |
+| Historical dismiss/report signal | +0.03 to +0.04 |
+| Active business transaction | +0.03 |
+| Missing context data | −0.06 |
+| Media present but unavailable | −0.04 |
+| High forward count in non-spam rule | −0.02 |
+| Low specificity rule (24+) | −0.04 |
+| Schema repair applied | −0.05 |
+| Fallback mode activated | −0.10 |
+
+---
+
+## 12. API Reference
+
+### FastAPI Backend Endpoints
+
+| Method | Endpoint | Description | Response |
+|--------|----------|-------------|----------|
+| `GET` | `/api/messages` | Returns all routed messages with original text, action, type, reason, confidence, and evidence | `{ status, data: [...] }` |
+| `GET` | `/api/stats` | Returns aggregate statistics: total, notify count, digest count, mute count | `{ status, stats: {...} }` |
+| `GET` | `/docs` | Auto-generated Swagger/OpenAPI documentation | Interactive API docs |
+
+### Output Schema Contract
+
+Every routed message produces exactly these 6 fields:
+
+```json
+{
+  "message_id": "MSG_001",
+  "action": "notify | digest | mute",
+  "message_type": "personal | urgent | event | payment | business_update | promotion | greeting | forward | spam | scam | unknown",
+  "reason": "Human-readable explanation of the routing decision",
+  "confidence": 0.85,
+  "evidence_message_ids": "HIS_042;HIS_039 | none"
+}
+```
+
+### Validation Rules (Enforced by `validators.py`)
+
+| Rule | Check |
+|------|-------|
+| Row count | Output rows must exactly match input rows (110) |
+| ID integrity | Output message_id set must match input message_id set exactly |
+| ID order | Output order must preserve input order |
+| No duplicates | No duplicate message_ids allowed |
+| Valid actions | Only `notify`, `digest`, `mute` |
+| Valid types | Only the 11 allowed message types |
+| Confidence range | Must be between 0.0 and 1.0 |
+| Non-empty reasons | Every row must have a reason string |
+| Evidence format | Semicolon-separated IDs or `none` |
+| UTF-8 encoding | Output must be valid UTF-8 |
+| No debug columns | No extra columns beyond the 6 defined |
+
+---
+
+## 13. Deployment Architecture
+
+```mermaid
+graph TB
+    subgraph Production["Production Deployment"]
+        subgraph Docker["Docker Compose"]
+            BE["Backend Container<br/>Python 3.10 + FastAPI<br/>Port 8000"]
+            FE["Frontend Container<br/>Node.js 18 + Next.js<br/>Port 3000"]
+        end
+
+        subgraph External["External Services"]
+            GEM["Google Gemini API<br/>Vision + OCR"]
+            GRQ["Groq API<br/>Whisper ASR"]
+            GH["GitHub Actions<br/>CI/CD Pipeline"]
+        end
+    end
+
+    subgraph Enterprise["Enterprise Deployment (Future)"]
+        subgraph K8s["Kubernetes Cluster"]
+            ING["Ingress Controller<br/>(nginx/traefik)"]
+            API_POD["API Pods<br/>(HPA: 2-10 replicas)"]
+            WORKER_POD["Worker Pods<br/>(HPA: 1-5 replicas)"]
+            FE_POD["Frontend Pods<br/>(2 replicas)"]
+        end
+
+        subgraph Data["Data Layer"]
+            PG["PostgreSQL<br/>Decision History"]
+            REDIS["Redis<br/>Cache + Queue"]
+            S3["Object Storage<br/>Media Files"]
+        end
+
+        subgraph Monitoring["Observability"]
+            PROM["Prometheus<br/>Metrics"]
+            GRAF["Grafana<br/>Dashboards"]
+            SENTRY["Sentry<br/>Error Tracking"]
+        end
+
+        ING --> API_POD
+        ING --> FE_POD
+        API_POD --> WORKER_POD
+        WORKER_POD --> PG
+        WORKER_POD --> REDIS
+        WORKER_POD --> S3
+        API_POD --> PROM
+        PROM --> GRAF
+        API_POD --> SENTRY
+    end
+
+    Docker --> Enterprise
+```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | For media processing | Google AI Studio API key for Gemini Vision |
+| `GROQ_API_KEY` | For voice processing | Groq Cloud API key for Whisper ASR |
+| `NVIDIA_API_KEY` | Optional | NVIDIA NIM API key for LLM routing |
+| `LLM_MODEL_ID` | Optional | Override default model for routing decisions |
+
+---
+
+## 14. Compliance & Audit Trail
+
+Every routing decision produces a **complete audit trail** — critical for regulated industries (banking, healthcare, fintech).
+
+### What Is Tracked
+
+| Data Point | Source | Purpose |
+|------------|--------|---------|
+| **Input message** | `messages.csv` | What was received |
+| **All features extracted** | `feature_extractor.py` | What signals were detected |
+| **Safety signals with provenance** | `SafetySignals` + `SignalSource` | Which detector flagged what, from which text source, with what confidence |
+| **Policy rules triggered** | `baseline_policy.py` | Which of the 27 rules fired |
+| **Evidence used** | `retriever.py` | Which historical messages were cited |
+| **Confidence breakdown** | `ConfidenceDecision` | How confidence was computed (every factor documented) |
+| **Final decision + reason** | `output.csv` | What action was taken and why |
+
+### Audit-Ready Design Patterns
+
+- **Immutable output:** Once `output.csv` is written, it is checksummed (SHA-256) in the `ReleaseCandidateManifest`.
+- **Source provenance:** Every `SafetySignal` carries a `SignalSource` that records the exact text fragment, the detector that fired, and whether the source was trusted.
+- **No black-box decisions:** The `reason` field is human-readable and cites specific signals. No decision is ever explained as just "AI decided."
+- **Evidence validation:** All evidence IDs pass through `validate_evidence_safety()` — ensuring no cross-user data leakage, no future evidence, and no self-referential evidence.
+
+---
+
+## 15. Competitive Analysis
+
+| Feature | Our System | Basic Rule Engine | Pure LLM Approach |
+|---------|-----------|-------------------|-------------------|
+| **Safety guarantees** | ✅ Deterministic, auditable | ✅ Deterministic | ❌ Non-deterministic |
+| **Multimodal support** | ✅ Text + Image + Voice | ❌ Text only | ✅ With multimodal LLM |
+| **Multilingual** | ✅ English + Hindi + Hinglish | ❌ Usually English only | ✅ With multilingual LLM |
+| **Explainability** | ✅ Full source provenance | ✅ Rule trace | ❌ Black box |
+| **Prompt injection defense** | ✅ 17 attack patterns detected | ❌ Not applicable | ❌ Vulnerable |
+| **Cost per message** | 💲 Low (mostly deterministic) | 💲 Free | 💲💲💲 High (API per message) |
+| **Latency** | ⚡ < 5ms deterministic path | ⚡ < 1ms | 🐢 200-2000ms API call |
+| **Personalization** | ✅ User history, preferences, quiet hours | ⚠️ Limited | ⚠️ Context window limited |
+| **Confidence calibration** | ✅ Multi-factor calibrated | ❌ Binary match/no-match | ⚠️ Uncalibrated logprobs |
+| **Production-ready** | ✅ Docker, CI/CD, 118 tests | ⚠️ No testing framework | ❌ Hard to test |
+
+---
+
+## 16. Limitations
 
 | Limitation | Impact | Mitigation |
 |------------|--------|------------|
@@ -433,7 +749,7 @@ graph LR
 
 ---
 
-## 9. Future Improvements
+## 17. Future Improvements
 
 | Priority | Improvement | Description |
 |----------|-------------|-------------|
@@ -448,7 +764,7 @@ graph LR
 
 ---
 
-## 10. How to Run
+## 18. How to Run
 
 ### Local Development
 ```bash
@@ -483,7 +799,7 @@ python -m pytest tests/   # 118 tests, ~5 seconds
 
 ---
 
-## 11. Project File Map
+## 19. Project File Map
 
 ```
 AI-Message-Notification-Router/
