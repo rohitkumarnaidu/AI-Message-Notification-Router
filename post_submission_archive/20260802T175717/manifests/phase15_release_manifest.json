@@ -1,0 +1,17 @@
+{
+  "candidate_path": "C:\\Hackathons\\Hackerrank\\Message Notification Router\\hackerrank-orchestrate-august26\\outputs\\phase15_release_candidate.csv",
+  "candidate_hash": "c19998711dae2962e5c64fcbf821d7b6d73510d2ac28f0c655854cb516491d06",
+  "input_hash": "",
+  "source_commit": "2ec04a4",
+  "router_version": "v15.0",
+  "policy_version": "v15.0",
+  "retrieval_version": "v15.0",
+  "media_version": "v15.0",
+  "reason_version": "v15.0",
+  "confidence_version": "v15.0",
+  "test_summary": {},
+  "evaluation_summary": {},
+  "manual_review_summary": {},
+  "known_warnings": [],
+  "freeze_status": "FROZEN"
+}

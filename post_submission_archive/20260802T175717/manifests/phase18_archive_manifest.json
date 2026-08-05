@@ -1,0 +1,36 @@
+{
+  "challenge": "HackerRank Orchestrate August 2026 - Message Notification Router",
+  "archive_record": "20260802T175717",
+  "creation_timestamp": "2026-08-02T17:57:17.479464",
+  "submission_state": "NOT UPLOADED",
+  "submission_id": null,
+  "submission_timestamp": null,
+  "source_branch": "phase-0-setup",
+  "frozen_source_commit": "ea2c3ac",
+  "artifacts": {
+    "code.zip": {
+      "source_path": "code.zip",
+      "source_hash": "0e94f545ff0947680c498f5ee4d8e0d8b96091b2b71661d1f3e18bc67ea3350a",
+      "archive_copy_hash": "0e94f545ff0947680c498f5ee4d8e0d8b96091b2b71661d1f3e18bc67ea3350a",
+      "size_bytes": 88124,
+      "classification": "UNSUBMITTED_FINAL_ARTIFACT"
+    },
+    "output.csv": {
+      "source_path": "output.csv",
+      "source_hash": "c19998711dae2962e5c64fcbf821d7b6d73510d2ac28f0c655854cb516491d06",
+      "archive_copy_hash": "c19998711dae2962e5c64fcbf821d7b6d73510d2ac28f0c655854cb516491d06",
+      "size_bytes": 11737,
+      "classification": "UNSUBMITTED_FINAL_ARTIFACT"
+    },
+    "log.txt": {
+      "source_path": "log.txt",
+      "source_hash": "70fdc081f5fac0070cfe4185bad634e2780ffc32dae276bf099b94ae8accfb37",
+      "archive_copy_hash": "70fdc081f5fac0070cfe4185bad634e2780ffc32dae276bf099b94ae8accfb37",
+      "size_bytes": 25243,
+      "classification": "UNSUBMITTED_FINAL_ARTIFACT"
+    }
+  },
+  "secret_scan": "PASSED",
+  "official_data_status": "UNCHANGED",
+  "archive_lock_status": "LOCKED"
+}
