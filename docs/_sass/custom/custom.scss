@@ -1,0 +1,286 @@
+/* ===== GLOBAL OVERRIDES ===== */
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+}
+
+/* ===== HERO SECTION (Home Page) ===== */
+
+.fs-9 {
+  font-size: 2.8rem !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  background: linear-gradient(135deg, #58a6ff 0%, #a371f7 50%, #f778ba 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.5rem !important;
+}
+
+.fs-6.fw-300 {
+  font-size: 1.15rem !important;
+  color: #8b949e !important;
+  line-height: 1.6 !important;
+  max-width: 680px;
+}
+
+/* ===== BUTTONS ===== */
+
+.btn-primary {
+  background: linear-gradient(135deg, #58a6ff, #a371f7) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  padding: 10px 24px !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 14px rgba(88, 166, 255, 0.25) !important;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(88, 166, 255, 0.4) !important;
+}
+
+.btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  transition: all 0.3s ease !important;
+}
+
+/* ===== SIDEBAR ===== */
+
+.side-bar {
+  background-color: #0d1117 !important;
+  border-right: 1px solid #21262d !important;
+}
+
+.site-title {
+  font-weight: 700 !important;
+  font-size: 1.1rem !important;
+  background: linear-gradient(135deg, #58a6ff, #a371f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nav-list .nav-list-item .nav-list-link {
+  font-size: 0.9rem !important;
+  padding: 8px 16px !important;
+  border-radius: 6px !important;
+  margin: 2px 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.nav-list .nav-list-item .nav-list-link:hover {
+  background-color: #161b22 !important;
+}
+
+.nav-list .nav-list-item .nav-list-link.active {
+  background: linear-gradient(135deg, rgba(88, 166, 255, 0.15), rgba(163, 113, 247, 0.1)) !important;
+  color: #58a6ff !important;
+  font-weight: 600 !important;
+  border-left: 3px solid #58a6ff !important;
+}
+
+/* ===== MAIN CONTENT ===== */
+
+.main-content {
+  background-color: #0d1117 !important;
+  max-width: 900px;
+}
+
+.main-content h1 {
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 1rem !important;
+  letter-spacing: -0.02em;
+}
+
+.main-content h2 {
+  font-weight: 700 !important;
+  color: #e6edf3 !important;
+  margin-top: 2.5rem !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid #21262d;
+}
+
+.main-content h3 {
+  font-weight: 600 !important;
+  color: #c9d1d9 !important;
+}
+
+.main-content p {
+  line-height: 1.75 !important;
+  color: #c9d1d9 !important;
+}
+
+/* ===== TABLES ===== */
+
+.main-content table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  border: 1px solid #21262d !important;
+  width: 100% !important;
+  margin: 1.5rem 0 !important;
+}
+
+.main-content table thead th {
+  background: linear-gradient(135deg, #161b22, #1c2128) !important;
+  color: #58a6ff !important;
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  padding: 12px 16px !important;
+  border-bottom: 2px solid #30363d !important;
+}
+
+.main-content table tbody td {
+  padding: 10px 16px !important;
+  border-bottom: 1px solid #21262d !important;
+  color: #c9d1d9 !important;
+  font-size: 0.9rem !important;
+}
+
+.main-content table tbody tr {
+  background-color: #0d1117 !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.main-content table tbody tr:hover {
+  background-color: #161b22 !important;
+}
+
+.main-content table tbody tr:nth-child(even) {
+  background-color: #0f1318 !important;
+}
+
+.main-content table tbody tr:nth-child(even):hover {
+  background-color: #161b22 !important;
+}
+
+/* ===== CODE BLOCKS ===== */
+
+.main-content code {
+  background-color: rgba(88, 166, 255, 0.1) !important;
+  color: #79c0ff !important;
+  border-radius: 4px !important;
+  padding: 2px 6px !important;
+  font-size: 0.85em !important;
+}
+
+.main-content pre {
+  background-color: #161b22 !important;
+  border: 1px solid #21262d !important;
+  border-radius: 10px !important;
+  padding: 16px !important;
+  margin: 1.5rem 0 !important;
+}
+
+.main-content pre code {
+  background-color: transparent !important;
+  color: #c9d1d9 !important;
+  padding: 0 !important;
+}
+
+/* ===== SEARCH BAR ===== */
+
+.search-input {
+  background-color: #161b22 !important;
+  border: 1px solid #30363d !important;
+  border-radius: 8px !important;
+  color: #c9d1d9 !important;
+  padding: 8px 12px !important;
+}
+
+.search-input:focus {
+  border-color: #58a6ff !important;
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15) !important;
+}
+
+/* ===== CALLOUTS / NOTES ===== */
+
+.note, .warning, .important {
+  border-radius: 8px !important;
+  padding: 16px 20px !important;
+  margin: 1.5rem 0 !important;
+}
+
+/* ===== HORIZONTAL RULES ===== */
+
+.main-content hr {
+  border-color: #21262d !important;
+  margin: 2rem 0 !important;
+}
+
+/* ===== TABLE OF CONTENTS ===== */
+
+.text-delta {
+  color: #8b949e !important;
+  text-transform: uppercase !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* ===== FOOTER ===== */
+
+.site-footer {
+  border-top: 1px solid #21262d !important;
+  color: #8b949e !important;
+}
+
+/* ===== LINKS ===== */
+
+.main-content a {
+  color: #58a6ff !important;
+  text-decoration: none !important;
+  transition: color 0.2s ease !important;
+}
+
+.main-content a:hover {
+  color: #a371f7 !important;
+  text-decoration: underline !important;
+}
+
+/* ===== AUX LINKS (top-right) ===== */
+
+.aux-nav .aux-nav-list-item a {
+  color: #58a6ff !important;
+  font-weight: 600 !important;
+}
+
+/* ===== SCROLLBAR ===== */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* ===== LIST ITEMS ===== */
+
+.main-content li {
+  color: #c9d1d9 !important;
+  line-height: 1.7 !important;
+  margin-bottom: 0.3rem !important;
+}
+
+.main-content strong {
+  color: #e6edf3 !important;
+}
