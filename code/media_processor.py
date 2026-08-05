@@ -90,12 +90,12 @@ def process_media(media_id: str, media_type: str, filepath: str) -> MediaAnalysi
     if cache_key in cache:
         if media_type == "image":
             return ImageAnalysis(**cache[cache_key])
-        elif media_type == "audio" or media_type == "voice_note":
+        elif media_type in ("voice", "audio", "voice_note"):
             return VoiceAnalysis(**cache[cache_key])
         return MediaAnalysis(**cache[cache_key])
 
     try:
-        if media_type == "audio" or media_type == "voice_note":
+        if media_type in ("voice", "audio", "voice_note"):
             analysis = provider.transcribe_audio(str(full_path))
             
             # If it's a dict
