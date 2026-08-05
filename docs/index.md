@@ -1,73 +1,70 @@
 ---
 layout: default
 title: Home
+nav_order: 1
+permalink: /
 ---
 
 # AI Message Notification Router
+{: .fs-9 }
 
-**An enterprise-grade AI system for intelligent WhatsApp message routing.**
+An enterprise-grade AI system that intelligently routes WhatsApp messages using multimodal analysis, deterministic safety guarantees, and personalized user context.
+{: .fs-6 .fw-300 }
 
----
-
-## What Is This?
-
-Modern messaging platforms deliver every message with the same priority — a bank OTP, a spam forward, and a friend's wedding invite all produce the same buzz. This system solves that by intelligently routing every message into one of three actions:
-
-- **🔔 Notify** — Urgent, time-sensitive, personally relevant → Phone buzzes immediately
-- **📋 Digest** — Useful but not urgent → Batched into a daily summary
-- **🔇 Mute** — Spam, scam, or irrelevant → Silently suppressed
+[Get Started]({{ site.baseurl }}/getting-started){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[View on GitHub](https://github.com/rohitkumarnaidu/AI-Message-Notification-Router){: .btn .fs-5 .mb-4 .mb-md-0 }
 
 ---
 
-## Documentation
+## The Problem
 
-| Page | Description |
-|------|-------------|
-| [📖 Technical Documentation](technical-documentation) | Complete 19-section design document with architecture diagrams |
-| [🔌 API Reference](API) | REST API endpoints, schemas, and error handling |
-| [🚀 Getting Started](getting-started) | Installation, setup, and quick start guide |
-| [🛡️ Safety Architecture](safety) | Security model, trust hierarchy, and threat defense |
-| [📊 Performance](performance) | Benchmarks, scaling strategy, and bottleneck analysis |
+Modern messaging platforms deliver every message with the same priority — a bank OTP, a spam forward, and a friend's wedding invite all produce the same buzz. This creates **notification fatigue**, where users either miss critical messages or disable notifications entirely.
+
+## Our Solution
+
+We built an AI-powered notification intelligence system that analyzes every incoming message across **text**, **images**, and **voice notes** — then makes a smart routing decision:
+
+| Action | When to Use | User Experience |
+|:-------|:------------|:----------------|
+| **`notify`** | Urgent, time-sensitive, personally relevant | 🔔 Phone buzzes immediately |
+| **`digest`** | Useful but not urgent | 📋 Batched into a daily summary |
+| **`mute`** | Spam, scam, or irrelevant | 🔇 Silently suppressed |
 
 ---
 
-## Quick Start
+## Key Highlights
 
-```bash
-# Clone and install
-git clone https://github.com/rohitkumarnaidu/AI-Message-Notification-Router.git
-cd AI-Message-Notification-Router
-pip install -r requirements.txt
-
-# Run the AI pipeline
-python code/run_phase15.py
-
-# Start the backend + frontend
-docker-compose up --build
-```
+- **36 Python modules** orchestrating a complete AI pipeline
+- **7 deterministic safety detectors** with 11 risk categories
+- **40+ features** extracted per message using regex-based signal detection
+- **118 deterministic tests** with 100% CI reliability
+- **Multimodal:** Text + Image (Gemini Vision OCR) + Voice (Groq Whisper ASR)
+- **Multilingual:** English, Hindi (transliterated), and Hinglish
+- **Zero unsafe notifications** — scam + notify is architecturally impossible
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| AI Pipeline | Python 3.10, 36 modules |
-| Vision AI | Google Gemini 2.5 Flash |
-| Speech AI | Groq Whisper Large v3 Turbo |
-| Frontend | Next.js 15, TailwindCSS, Framer Motion |
-| Backend | FastAPI |
-| CI/CD | GitHub Actions (118 tests) |
-| Deployment | Docker Compose |
+|:------|:----------|
+| **AI Pipeline** | Python 3.10, 36 modules |
+| **Vision AI** | Google Gemini 2.5 Flash |
+| **Speech AI** | Groq Whisper Large v3 Turbo |
+| **Frontend** | Next.js 15, TailwindCSS, Framer Motion |
+| **Backend** | FastAPI (async, auto-documented) |
+| **Deployment** | Docker Compose |
+| **CI/CD** | GitHub Actions (118 tests) |
 
 ---
 
-## Links
+## Enterprise Use Cases
 
-- [GitHub Repository](https://github.com/rohitkumarnaidu/AI-Message-Notification-Router)
-- [Problem Statement](https://github.com/rohitkumarnaidu/AI-Message-Notification-Router/blob/main/problem_statement.md)
-- [Changelog](https://github.com/rohitkumarnaidu/AI-Message-Notification-Router/blob/main/CHANGELOG.md)
-
----
-
-*Built with ❤️ by [Rohit Kumar Naidu](https://github.com/rohitkumarnaidu)*
+| Industry | Application |
+|:---------|:------------|
+| **Banking / Fintech** | Flag OTP phishing, payment scams, impersonation |
+| **E-Commerce** | Route order updates vs promotions vs spam |
+| **Healthcare** | Triage patient messages by urgency |
+| **Enterprise IT** | Internal Slack/Teams notification routing |
+| **Social Media** | Reduce group chat notification fatigue |
+| **Compliance** | Full audit trail with source provenance |
