@@ -7,11 +7,26 @@ import math
 
 app = FastAPI(title="Message Router API", version="1.0")
 
+# Zero Trust CORS Configuration: Explicit origin allowlist (NIST SP 800-207)
+# Prevent wildcard origins when credentials/cookies are permitted
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env.strip():
+    allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8501",
+        "http://127.0.0.1:8501",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
